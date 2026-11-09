@@ -23,6 +23,7 @@ const api: BuhoStudioApi = {
   renombrar: i('renombrar') as BuhoStudioApi['renombrar'],
   borrar: i('borrar') as BuhoStudioApi['borrar'],
   ponerEstado: i('ponerEstado') as BuhoStudioApi['ponerEstado'],
+  ponerFicha: i('ponerFicha') as BuhoStudioApi['ponerFicha'],
   comentarios: i('comentarios') as BuhoStudioApi['comentarios'],
   comentar: i('comentar') as BuhoStudioApi['comentar'],
   resolver: i('resolver') as BuhoStudioApi['resolver'],

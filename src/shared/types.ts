@@ -21,9 +21,21 @@ export interface Entrada {
   tam: number
   mtime: number
   estado?: EstadoAsset
+  /** Nombre legible del asset (ficha). El archivo sigue llamándose `nombre`. */
+  titulo?: string
+  /** Para qué es, de dónde sale, cómo se usa en el juego (ficha). */
+  descripcion?: string
   /** Comentarios sin resolver */
   pendientes?: number
   hijos?: Entrada[]
+}
+
+/** Ficha de un asset: nombre legible y descripción (.buhostudio/fichas.json). */
+export interface Ficha {
+  titulo?: string
+  descripcion?: string
+  autor: string
+  fecha: string
 }
 
 export interface Proyecto {
@@ -123,6 +135,7 @@ export interface BuhoStudioApi {
   renombrar: (ruta: string, nombre: string) => Promise<Entrada>
   borrar: (ruta: string) => Promise<{ ok: boolean }>
   ponerEstado: (ruta: string, estado: string | null) => Promise<Entrada>
+  ponerFicha: (ruta: string, cambios: { titulo?: string; descripcion?: string }) => Promise<Entrada>
   comentarios: (ruta?: string) => Promise<Comentario[]>
   comentar: (ruta: string, texto: string, respuestaA?: string) => Promise<Comentario>
   resolver: (id: string, resuelto: boolean) => Promise<Comentario>

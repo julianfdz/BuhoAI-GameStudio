@@ -17,3 +17,4 @@ Fuente de verdad del alcance. Cada decisión con su número, estado y fecha.
 | D-11 | `anadir` **copia** (nunca mueve) y no pisa: si existe, «nombre (2).ext». Los `.meta` de Unity se saltan. Borrar va a la papelera de Windows. | vigente | 08/11/2026 |
 | D-12 | Marca Búho: barra y árbol navy `#0A1F3A`, acento turquesa `#00C1B8`, Georgia en títulos. Un solo tema por ahora. | vigente | 08/11/2026 |
 | D-13 | Repo **público** (MIT). Las capturas del README son del proyecto Búho Zombies; nada del juego (assets, docs) va en el repo. | vigente | 08/11/2026 |
+| D-14 | **Ficha** de cada archivo o carpeta: nombre legible y descripción en `.buhostudio/fichas.json` (no renombra el archivo). Sigue al archivo al mover o renombrar, se borra con él y entra en la búsqueda. CLI: `ficha`, `fichas --faltan`, `anadir --nombre --descripcion`. | vigente | 09/11/2026 |

@@ -1,7 +1,7 @@
 {
   "name": "buhoai-gamestudio",
   "productName": "Búho Game Studio",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Búho Game Studio: la mesa de trabajo de un videojuego. Proyectos que son carpetas reales (como VS Code), contexto en Markdown, galería de assets con miniaturas y visor 3D, estados, comentarios, historial firmado, API local y CLI `buho-studio` para agentes. Independiente del motor. Buho Corps Systems.",
   "author": { "name": "Buho Corps Systems" },
   "license": "MIT",

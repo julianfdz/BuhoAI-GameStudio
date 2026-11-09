@@ -47,7 +47,7 @@ buho-studio nota Contexto "Facciones" --file facciones.md --autor Claude      # 
 buho-studio escribir Contexto/Lore.md --file lore.md --autor Claude           # reemplaza el archivo
 buho-studio escribir Tareas/Pendientes.md --text "- [ ] Revisar sonidos" --anadir --autor Claude
 buho-studio carpeta Assets "Música" --autor Claude
-buho-studio anadir "Assets/Modelos 3D" D:\descargas\silla.glb --autor Claude  # COPIA (el original no se toca)
+buho-studio anadir "Assets/Modelos 3D" D:\descargas\silla.glb --nombre "Silla de oficina" --descripcion "Prop del laboratorio, nivel 2" --autor Claude  # COPIA (el original no se toca)
 buho-studio mover Assets/Imágenes/boceto.png Assets/Texturas --autor Claude
 buho-studio renombrar Contexto/Lore.md "Lore del mundo" --autor Claude        # la extensión se conserva
 buho-studio borrar Capturas/vieja.png --autor Claude                          # a la papelera de Windows
@@ -55,6 +55,12 @@ buho-studio borrar Capturas/vieja.png --autor Claude                          # 
 # Equipo: estados, comentarios e historial
 buho-studio estado-de "Assets/Modelos 3D/raygun.glb" revisar --autor Claude   # idea | en-curso | revisar | aprobado | ninguno
 buho-studio estados --estado revisar
+
+# Ficha de cada asset: nombre legible y descripción (el archivo no se renombra)
+buho-studio ficha "Assets/Modelos 3D/raygun.glb" --nombre "Ray Gun Búho" --descripcion "Arma maravilla: dispara bolas de energía verdes; se consigue en la caja misteriosa" --autor Claude
+buho-studio ficha "Assets/Modelos 3D/raygun.glb"            # sin opciones: la lee
+buho-studio ficha <ruta> --descripcion ""                    # vacío: borra ese campo
+buho-studio fichas "Assets" --faltan                         # assets sin nombre o sin descripción
 buho-studio comentarios --pendientes                # lo que el equipo espera que contestes
 buho-studio comentar Contexto/Historia.md "Falta el final del acto 2" --autor Claude
 buho-studio responder k-1a2b3c4d "Hecho: añadido en la sección Final" --resolver --autor Claude
@@ -84,11 +90,14 @@ Opciones globales: `--json` (salida JSON en una línea), `--autor "Nombre"`, `--
    (como en Obsidian: busca un archivo del proyecto con ese nombre).
 4. **Estados**: pon `revisar` a lo que hayas terminado para que lo vea una persona. No pongas `aprobado` a tu propio
    trabajo salvo que te lo pidan: aprobar es cosa del equipo.
-5. **Assets de fuera**: `anadir` copia; el original no se mueve ni se borra. Respeta las licencias (apúntalas en
+5. **Ficha de cada asset**: todo asset que subas o crees lleva **nombre** (cómo se llama en el juego, p. ej.
+   «Ray Gun Búho», no `raygun_buho_v3.glb`) y **descripción** (qué es, dónde sale en el juego, de dónde viene).
+   Ponlos con `anadir … --nombre --descripcion` o con `ficha`. Revisa `fichas --faltan` antes de pasar algo a `revisar`.
+6. **Assets de fuera**: `anadir` copia; el original no se mueve ni se borra. Respeta las licencias (apúntalas en
    `Contexto/Referencias.md` o en una nota de créditos).
-6. **No dependas del motor**: el proyecto del estudio no es el proyecto de Unity. Si hay uno enlazado
+7. **No dependas del motor**: el proyecto del estudio no es el proyecto de Unity. Si hay uno enlazado
    (`conectores`), no copies el estudio dentro de su `Assets/`; para lanzar órdenes del motor usa `buho-studio unity -- …`.
-7. **Comprueba con los ojos**: tras subir modelos, `miniaturas` y mira las imágenes de `.buhostudio/miniaturas/`
+8. **Comprueba con los ojos**: tras subir modelos, `miniaturas` y mira las imágenes de `.buhostudio/miniaturas/`
    (la ruta sale en el JSON). Para revisar un .blend a fondo, usa la skill `buho-blender`.
 
 ## Errores típicos

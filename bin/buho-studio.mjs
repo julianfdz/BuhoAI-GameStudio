@@ -23,7 +23,8 @@
  *   buho-studio nota <carpeta> "Título" [--text "…" | --text - | --file x.md]
  *   buho-studio escribir <ruta> [--text "…" | --text - | --file x.md] [--anadir]
  *   buho-studio carpeta <padre> "Nombre"
- *   buho-studio anadir <carpeta destino> <archivo|carpeta> [más…]   COPIA archivos de fuera (no mueve el original)
+ *   buho-studio anadir <carpeta destino> <archivo|carpeta> [más…] [--nombre "…"] [--descripcion "…"]
+ *                                                        COPIA archivos de fuera (no mueve el original)
  *   buho-studio mover <ruta> <carpeta destino>
  *   buho-studio renombrar <ruta> "Nombre nuevo"
  *   buho-studio borrar <ruta>                            a la papelera de Windows
@@ -31,6 +32,8 @@
  * Equipo
  *   buho-studio estado-de <ruta> [<ruta>…] <idea|en-curso|revisar|aprobado|ninguno>
  *   buho-studio estados [--estado revisar]
+ *   buho-studio ficha <ruta> [--nombre "Ray Gun Búho"] [--descripcion "…" | --file d.md]   nombre y descripción
+ *   buho-studio fichas [<carpeta>] [--faltan]            fichas puestas, o assets a los que les falta nombre o descripción
  *   buho-studio comentarios [<ruta>] [--pendientes]      hilos con sus respuestas
  *   buho-studio comentar <ruta> "texto"
  *   buho-studio responder <id> "texto" [--resolver]
@@ -152,6 +155,14 @@ const out = (o) => process.stdout.write(JSON.stringify(o, null, opt.json ? 0 : 2
 const necesita = (n, uso) => {
   if (args.length < n) die(`Uso: buho-studio ${uso}`)
 }
+/** --nombre y --descripcion (también --titulo). '' borra el campo. */
+const ficha = () => {
+  const c = {}
+  const n = opt.nombre ?? opt.titulo
+  if (n !== undefined) c.titulo = n === true ? '' : String(n)
+  if (opt.descripcion !== undefined) c.descripcion = opt.descripcion === true ? '' : String(opt.descripcion).replace(/\\n/g, '\n')
+  return c
+}
 const rutaDe = (r) => (r === undefined || r === '/' || r === '.' ? '' : r)
 
 async function leerTexto() {
@@ -170,7 +181,7 @@ const ICO = { carpeta: '▸', nota: '✎', imagen: '▣', modelo: '◆', audio: 
 function pintar(ns, nivel, max) {
   for (const n of ns) {
     const extra = `${n.estado ? `  ${MARCA[n.estado]} ${n.estado}` : ''}${n.pendientes ? `  ✉${n.pendientes}` : ''}`
-    print(`${'  '.repeat(nivel)}${ICO[n.clase] ?? '·'} ${n.nombre}${n.clase === 'carpeta' ? '/' : ''}${extra}`)
+    print(`${'  '.repeat(nivel)}${ICO[n.clase] ?? '·'} ${n.nombre}${n.clase === 'carpeta' ? '/' : ''}${n.titulo ? `  «${n.titulo}»` : ''}${extra}`)
     if (n.hijos && nivel + 1 < max) pintar(n.hijos, nivel + 1, max)
   }
 }
@@ -266,7 +277,14 @@ async function main() {
     case 'anadir':
     case 'añadir':
       necesita(2, 'anadir <carpeta destino> <archivo> [más…]')
-      return out(await call('anadir', { destino: rutaDe(args[0]), archivos: args.slice(1).map((a) => resolve(a)), origen: typeof opt.origen === 'string' ? opt.origen : undefined }))
+      return out(
+        await call('anadir', {
+          destino: rutaDe(args[0]),
+          archivos: args.slice(1).map((a) => resolve(a)),
+          origen: typeof opt.origen === 'string' ? opt.origen : undefined,
+          ...ficha()
+        })
+      )
     case 'mover':
       necesita(2, 'mover <ruta> <carpeta destino>')
       return out(await call('mover', { ruta: args[0], destino: rutaDe(args[1]) }))
@@ -282,6 +300,27 @@ async function main() {
       const r = await call('estado-poner', { rutas: args.slice(0, -1), estado: estado === 'ninguno' ? null : estado })
       if (opt.json) return out(r)
       for (const x of r) print(`${x.ruta}: ${x.estado ?? 'sin estado'}`)
+      return
+    }
+    case 'ficha': {
+      necesita(1, 'ficha <ruta> [--nombre "…"] [--descripcion "…" | --file d.md]')
+      const c = ficha()
+      if (typeof opt.file === 'string') c.descripcion = readFileSync(resolve(opt.file), 'utf8').trim()
+      const r = await call('ficha', { ruta: rutaDe(args[0]), ...c })
+      if (opt.json) return out(r)
+      print(r.ruta || '/')
+      print(`  Nombre:       ${r.titulo ?? '(sin nombre)'}`)
+      print(`  Descripción:  ${r.descripcion ?? '(sin descripción)'}`)
+      return
+    }
+    case 'fichas': {
+      const r = await call('fichas', { ruta: args[0] ? rutaDe(args[0]) : undefined, faltan: !!opt.faltan })
+      if (opt.json) return out(r)
+      if (!r.length) return print(opt.faltan ? 'Todos los assets tienen nombre y descripción.' : 'Ningún asset tiene ficha aún.')
+      for (const x of r) {
+        print(`${x.ruta}`)
+        print(`   ${x.titulo ?? '(sin nombre)'}${x.descripcion ? ` · ${x.descripcion}` : '  · (sin descripción)'}`)
+      }
       return
     }
     case 'estados': {

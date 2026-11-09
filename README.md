@@ -20,6 +20,7 @@ No depende de ningún motor: Unity, Godot o Unreal se enlazan como conectores op
 | **Galería de assets** | Miniaturas de imágenes y de modelos 3D: `.glb`, `.gltf`, `.fbx`, `.obj` y `.stl` los pinta la app con three.js; los `.blend`, [`buho-blender`](https://github.com/julianfdz/BuhoAI-Blender-CLI). Filtro por estado y vista con subcarpetas. Arrastra archivos desde el Explorador para copiarlos. |
 | **Visor 3D** | Gira, acerca y reproduce las animaciones de `.glb` y `.fbx` (Mixamo incluido). Si el archivo solo trae esqueleto, lo dibuja. |
 | **Audio y vídeo** | Se escuchan desde la tarjeta, sin abrir el archivo. |
+| **Ficha de cada asset** | Nombre legible («Ray Gun Búho») y descripción por archivo o carpeta, sin renombrar el archivo. Se ven en la galería, en la cabecera y en el panel, se editan ahí mismo y entran en la búsqueda. |
 | **Estados** | Idea → En curso → Revisar → Aprobado, en cualquier archivo o carpeta. El **Tablero** los junta en columnas. |
 | **Comentarios** | Por archivo, con respuestas y resolver. Los agentes los leen (`comentarios --pendientes`) y contestan. |
 | **Historial firmado** | Quién (persona 👤, agente 🤖 con su nombre, o cambio externo 📁), por dónde (app, CLI) y qué. |
@@ -70,6 +71,8 @@ buho-studio arbol --profundidad 2
 buho-studio leer Contexto/Lore.md
 buho-studio nota Contexto "Facciones" --file facciones.md --autor Claude
 buho-studio anadir "Assets/Modelos 3D" D:\descargas\silla.glb --autor Claude     # copia, no mueve
+buho-studio ficha "Assets/Modelos 3D/silla.glb" --nombre "Silla de oficina" --descripcion "Prop del laboratorio" --autor Claude
+buho-studio fichas Assets --faltan                                               # assets sin nombre o descripción
 buho-studio estado-de "Assets/Modelos 3D/silla.glb" revisar --autor Claude
 buho-studio comentarios --pendientes
 buho-studio responder k-1a2b3c4d "Hecho" --resolver --autor Claude

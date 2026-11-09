@@ -1,7 +1,7 @@
 import { appendFileSync, cpSync, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, statSync, writeFileSync } from 'node:fs'
 import { basename, dirname, extname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { createHash, randomBytes } from 'node:crypto'
-import type { Clase, Comentario, Entrada, EstadoAsset, Evento, Proyecto } from '@shared/types'
+import type { Clase, Comentario, Entrada, EstadoAsset, Evento, Ficha, Proyecto } from '@shared/types'
 import { PLANTILLA } from './plantilla'
 
 /**
@@ -10,6 +10,7 @@ import { PLANTILLA } from './plantilla'
  *
  *   .buhostudio/proyecto.json     nombre, id y enlaces (p. ej. la carpeta del proyecto de Unity)
  *   .buhostudio/estados.json      estado de cada archivo o carpeta (idea → en curso → revisar → aprobado)
+ *   .buhostudio/fichas.json       nombre y descripción de cada asset (el nombre del archivo no cambia)
  *   .buhostudio/comentarios.json  comentarios por archivo, con respuestas (los agentes los leen y contestan)
  *   .buhostudio/historial.jsonl   historial firmado: quién (persona o agente), por dónde (app, cli) y qué
  *   .buhostudio/miniaturas/       caché de miniaturas de modelos 3D (se puede borrar)
@@ -139,6 +140,8 @@ export function guardarProyecto(cambios: Partial<Proyecto>): Proyecto {
 type Estados = Record<string, { estado: EstadoAsset; autor: string; fecha: string }>
 const estados = (): Estados => leerJson<Estados>(meta('estados.json'), {})
 const comentariosTodos = (): Comentario[] => leerJson<Comentario[]>(meta('comentarios.json'), [])
+type Fichas = Record<string, Ficha>
+const fichas = (): Fichas => leerJson<Fichas>(meta('fichas.json'), {})
 
 /** Al mover o renombrar, el estado y los comentarios siguen al archivo (y a todo lo que cuelga de una carpeta). */
 function reubicar(de: string, a: string): void {
@@ -147,6 +150,9 @@ function reubicar(de: string, a: string): void {
   const e2: Estados = {}
   for (const [k, v] of Object.entries(e)) e2[cambia(k) ?? k] = v
   guardarJson(meta('estados.json'), e2)
+  const f2: Fichas = {}
+  for (const [k, v] of Object.entries(fichas())) f2[cambia(k) ?? k] = v
+  guardarJson(meta('fichas.json'), f2)
   const c = comentariosTodos().map((x) => ({ ...x, ruta: cambia(x.ruta) ?? x.ruta }))
   guardarJson(meta('comentarios.json'), c)
 }
@@ -163,6 +169,28 @@ export function ponerEstado(r: string, estado: string | null, autor: string): vo
     e[k] = { estado: v, autor, fecha: new Date().toISOString() }
   }
   guardarJson(meta('estados.json'), e)
+}
+
+/**
+ * Nombre (título legible) y descripción de un asset o carpeta. No renombra el archivo: es la ficha que ven las
+ * personas y los agentes. `undefined` deja el campo como estaba; '' lo borra.
+ */
+export function ponerFicha(r: string, cambios: { titulo?: string; descripcion?: string }, autor: string): Ficha | null {
+  existe(r)
+  const k = norm(r)
+  const f = fichas()
+  const antes: Partial<Ficha> = f[k] ?? {}
+  const titulo = cambios.titulo === undefined ? antes.titulo : cambios.titulo.trim() || undefined
+  const descripcion = cambios.descripcion === undefined ? antes.descripcion : cambios.descripcion.trim() || undefined
+  if (!titulo && !descripcion) delete f[k]
+  else f[k] = { ...(titulo ? { titulo } : {}), ...(descripcion ? { descripcion } : {}), autor, fecha: new Date().toISOString() }
+  guardarJson(meta('fichas.json'), f)
+  return f[k] ?? null
+}
+
+export function listarFichas(): (Ficha & { ruta: string })[] {
+  exigir()
+  return Object.entries(fichas()).map(([ruta, v]) => ({ ruta, ...v }))
 }
 
 export function listarEstados(): { ruta: string; estado: EstadoAsset; autor: string; fecha: string }[] {
@@ -247,6 +275,7 @@ export function historial(r?: string, max = 200): Evento[] {
 export function arbol(): Entrada[] {
   exigir()
   const e = estados()
+  const fs = fichas()
   const pend: Record<string, number> = {}
   for (const c of comentariosTodos()) if (!c.respuestaA && !c.resuelto) pend[c.ruta] = (pend[c.ruta] ?? 0) + 1
   const leerDir = (dir: string, prof: number): Entrada[] => {
@@ -267,7 +296,7 @@ export function arbol(): Entrada[] {
         continue
       }
       const r = rel(p)
-      const base = { ruta: r, nombre: n, mtime: Math.round(st.mtimeMs), ...(e[r] ? { estado: e[r].estado } : {}), ...(pend[r] ? { pendientes: pend[r] } : {}) }
+      const base = { ruta: r, nombre: n, mtime: Math.round(st.mtimeMs), ...(e[r] ? { estado: e[r].estado } : {}), ...(fs[r]?.titulo ? { titulo: fs[r].titulo } : {}), ...(fs[r]?.descripcion ? { descripcion: fs[r].descripcion } : {}), ...(pend[r] ? { pendientes: pend[r] } : {}) }
       if (st.isDirectory()) out.push({ ...base, clase: 'carpeta', ext: '', tam: 0, hijos: prof < 12 ? leerDir(p, prof + 1) : [] })
       else out.push({ ...base, clase: claseDe(n), ext: extname(n).toLowerCase(), tam: st.size })
     }
@@ -406,6 +435,9 @@ export async function borrar(r: string, papelera: (p: string) => Promise<void>):
   const e = estados()
   for (const x of Object.keys(e)) if (x === k || x.startsWith(k + '/')) delete e[x]
   guardarJson(meta('estados.json'), e)
+  const f = fichas()
+  for (const x of Object.keys(f)) if (x === k || x.startsWith(k + '/')) delete f[x]
+  guardarJson(meta('fichas.json'), f)
   return { ok: true, ruta: k }
 }
 
@@ -421,7 +453,12 @@ export function buscar(q: string, max = 40): { ruta: string; nombre: string; cla
     let fragmento: string | undefined
     if (n.nombre.toLowerCase().includes(t)) peso += 10
     else if (n.ruta.toLowerCase().includes(t)) peso += 4
-    if (TEXTO.includes(n.clase) && n.tam < 1_000_000) {
+    if (n.titulo?.toLowerCase().includes(t)) peso += 10
+    if (n.descripcion?.toLowerCase().includes(t)) {
+      peso += 5
+      fragmento = n.descripcion
+    }
+    if (TEXTO.includes(n.clase) && n.tam < 1_000_000 && !fragmento) {
       try {
         const txt = readFileSync(join(raiz, n.ruta), 'utf8')
         const i = txt.toLowerCase().indexOf(t)

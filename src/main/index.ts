@@ -241,6 +241,10 @@ function registerIpc(): void {
     est.ponerEstado(r, s, A().autor)
     return hecho(A(), `estado: ${s ?? 'ninguno'}`, [r], est.entrada(r))
   })
+  ipcMain.handle('ponerFicha', (_e, r: string, c: { titulo?: string; descripcion?: string }) => {
+    est.ponerFicha(r, c, A().autor)
+    return hecho(A(), 'edita ficha', [r], est.entrada(r), resumenFicha(c))
+  })
   ipcMain.handle('comentarios', (_e, r?: string) => est.comentarios(r))
   ipcMain.handle('comentar', (_e, r: string, t: string, resp?: string) => {
     const c = est.comentar(r, t, A().autor, 'persona', resp)
@@ -283,6 +287,10 @@ function enlazarUnity(dir: string | null, f: Firma): Proyecto {
 }
 
 // ---------------------------------------------------------------- API para el CLI
+const resumenFicha = (c: { titulo?: string; descripcion?: string }): string =>
+  [c.titulo !== undefined ? `nombre: ${c.titulo || '(sin nombre)'}` : '', c.descripcion !== undefined ? `descripción: ${(c.descripcion || '(sin descripción)').slice(0, 100)}` : '']
+    .filter(Boolean)
+    .join(' · ')
 const S = (v: unknown): string => (v === undefined || v === null ? '' : String(v))
 const lista = (v: unknown): string[] => (Array.isArray(v) ? v.map(String) : v ? [String(v)] : [])
 
@@ -336,6 +344,10 @@ async function apiCall(m: string, p: Record<string, unknown>, canal: string): Pr
     }
     case 'anadir': {
       const xs = est.anadir(S(p.destino), lista(p.archivos))
+      if (xs.length === 1 && (p.titulo !== undefined || p.descripcion !== undefined)) {
+        est.ponerFicha(xs[0].ruta, { titulo: p.titulo === undefined ? undefined : S(p.titulo), descripcion: p.descripcion === undefined ? undefined : S(p.descripcion) }, F.autor)
+        xs[0] = est.entrada(xs[0].ruta)
+      }
       return hecho(F, 'añade', xs.map((x) => x.ruta), xs, p.origen ? `desde ${S(p.origen)}` : undefined)
     }
     case 'mover': {
@@ -352,6 +364,23 @@ async function apiCall(m: string, p: Record<string, unknown>, canal: string): Pr
       const rutas = lista(p.rutas)
       for (const r of rutas) est.ponerEstado(r, p.estado === null ? null : S(p.estado), F.autor)
       return hecho(F, `estado: ${S(p.estado) || 'ninguno'}`, rutas.map(est.norm), rutas.map((r) => est.entrada(r)))
+    }
+    case 'ficha': {
+      const r = est.norm(S(p.ruta))
+      const c = { titulo: p.titulo === undefined ? undefined : S(p.titulo), descripcion: p.descripcion === undefined ? undefined : S(p.descripcion) }
+      if (c.titulo === undefined && c.descripcion === undefined) return { ...est.entrada(r), hijos: undefined }
+      est.ponerFicha(r, c, F.autor)
+      return hecho(F, 'edita ficha', [r], { ...est.entrada(r), hijos: undefined }, resumenFicha(c))
+    }
+    case 'fichas': {
+      const desde = est.norm(S(p.ruta))
+      const dentro = (r: string): boolean => !desde || r === desde || r.startsWith(desde + '/')
+      if (!p.faltan) return est.listarFichas().filter((x) => dentro(x.ruta))
+      // Assets (no carpetas ni notas) que aún no tienen nombre o descripción
+      return est
+        .plano()
+        .filter((x) => x.clase !== 'carpeta' && x.clase !== 'nota' && dentro(x.ruta) && (!x.titulo || !x.descripcion))
+        .map((x) => ({ ruta: x.ruta, clase: x.clase, titulo: x.titulo, descripcion: x.descripcion }))
     }
     case 'estados': {
       const xs = est.listarEstados()

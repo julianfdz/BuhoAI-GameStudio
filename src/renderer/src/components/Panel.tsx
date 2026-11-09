@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Bot, Check, CornerDownRight, ExternalLink, FolderSearch, ImageUp, Send, User, Undo2, Box } from 'lucide-react'
 import { ESTADOS, type Comentario, type Entrada, type Evento } from '@shared/types'
 import { fecha, tam } from '@/lib/util'
@@ -6,7 +6,52 @@ import { rehacerMiniatura } from '@/lib/miniaturas'
 
 const Quien = ({ origen }: { origen: string }): React.JSX.Element => (origen === 'ia' ? <Bot size={13} className="c-ia" /> : origen === 'externo' ? <FolderSearch size={13} /> : <User size={13} />)
 
-/** Panel de la derecha: datos, estado, comentarios (con respuestas) e historial firmado del elemento elegido. */
+/** Nombre legible y descripción del asset. Se guarda al salir del campo (o con Ctrl+Enter en la descripción). */
+function Ficha({ e }: { e: Entrada }): React.JSX.Element {
+  const [titulo, setTitulo] = useState(e.titulo ?? '')
+  const [desc, setDesc] = useState(e.descripcion ?? '')
+  const foco = useRef<'titulo' | 'desc' | null>(null)
+  // Si lo cambia un agente mientras miras, se actualiza (salvo el campo que estás escribiendo)
+  useEffect(() => {
+    if (foco.current !== 'titulo') setTitulo(e.titulo ?? '')
+    if (foco.current !== 'desc') setDesc(e.descripcion ?? '')
+  }, [e.ruta, e.titulo, e.descripcion])
+  const guardar = (campo: 'titulo' | 'descripcion', v: string): void => {
+    foco.current = null
+    if (v.trim() === ((campo === 'titulo' ? e.titulo : e.descripcion) ?? '')) return
+    void window.buho.ponerFicha(e.ruta, { [campo]: v })
+  }
+  return (
+    <div className="panel-bloque ficha">
+      <div className="etiqueta">Ficha</div>
+      <label className="campo">
+        <span className="pequeno muted">Nombre</span>
+        <input
+          value={titulo}
+          placeholder={e.clase === 'carpeta' ? 'Nombre de la carpeta en el juego…' : 'p. ej. «Ray Gun Búho»'}
+          onFocus={() => (foco.current = 'titulo')}
+          onChange={(x) => setTitulo(x.target.value)}
+          onBlur={(x) => guardar('titulo', x.target.value)}
+          onKeyDown={(x) => x.key === 'Enter' && x.currentTarget.blur()}
+        />
+      </label>
+      <label className="campo">
+        <span className="pequeno muted">Descripción</span>
+        <textarea
+          value={desc}
+          rows={3}
+          placeholder="Qué es, para qué sirve en el juego, de dónde sale…"
+          onFocus={() => (foco.current = 'desc')}
+          onChange={(x) => setDesc(x.target.value)}
+          onBlur={(x) => guardar('descripcion', x.target.value)}
+          onKeyDown={(x) => x.key === 'Enter' && (x.ctrlKey || x.metaKey) && x.currentTarget.blur()}
+        />
+      </label>
+    </div>
+  )
+}
+
+/** Panel de la derecha: datos, ficha, estado, comentarios (con respuestas) e historial firmado del elemento elegido. */
 export function Panel({ e, version, nombreProyecto, aviso }: { e: Entrada | null; version: number; nombreProyecto: string; aviso: (t: string) => void }): React.JSX.Element {
   const ruta = e?.ruta ?? ''
   const [coms, setComs] = useState<Comentario[]>([])
@@ -29,7 +74,8 @@ export function Panel({ e, version, nombreProyecto, aviso }: { e: Entrada | null
     <aside className="panel">
       <div className="panel-bloque">
         <div className="etiqueta">{e ? (e.clase === 'carpeta' ? 'Carpeta' : 'Archivo') : 'Proyecto'}</div>
-        <h3 className="panel-titulo">{e?.nombre ?? nombreProyecto}</h3>
+        <h3 className="panel-titulo">{e?.titulo || e?.nombre || nombreProyecto}</h3>
+        {e?.titulo && <div className="pequeno">{e.nombre}</div>}
         <div className="mono muted pequeno ruta">{ruta || '/'}</div>
         {e && e.clase !== 'carpeta' && (
           <div className="muted pequeno">
@@ -66,6 +112,8 @@ export function Panel({ e, version, nombreProyecto, aviso }: { e: Entrada | null
           </div>
         )}
       </div>
+
+      {e && <Ficha e={e} />}
 
       {e && (
         <div className="panel-bloque">

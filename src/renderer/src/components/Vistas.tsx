@@ -82,7 +82,7 @@ function Tarjeta({ e, abrir, sel }: { e: Entrada; abrir: (r: string) => void; se
       onClick={() => abrir(e.ruta)}
       draggable
       onDragStart={(ev) => ev.dataTransfer.setData('text/x-buho-ruta', e.ruta)}
-      title={e.ruta}
+      title={[e.titulo, e.ruta, e.descripcion].filter(Boolean).join('\n')}
     >
       <div className={`mini ${e.clase === 'modelo' || e.clase === 'imagen' ? 'oscura' : ''}`}>
         {fondo}
@@ -90,7 +90,9 @@ function Tarjeta({ e, abrir, sel }: { e: Entrada; abrir: (r: string) => void; se
         {e.pendientes ? <span className="sello-com">{e.pendientes}</span> : null}
       </div>
       <div className="pie">
-        <span className="nombre">{e.nombre}</span>
+        <span className="nombre">{e.titulo || e.nombre}</span>
+        {e.titulo && <span className="archivo-real mono pequeno">{e.nombre}</span>}
+        {e.descripcion && <span className="desc pequeno">{e.descripcion}</span>}
         <span className="muted pequeno">{e.clase === 'carpeta' ? 'carpeta' : `${e.ext.replace('.', '').toUpperCase() || '—'} · ${tam(e.tam)}`}</span>
       </div>
     </button>
@@ -332,9 +334,13 @@ export function ArchivoVista(p: { e: Entrada; idx: Map<string, Entrada>; abrir: 
     <div className={`pagina archivo clase-${e.clase}`}>
       <Migas ruta={e.ruta} nombre={p.nombreProyecto} ir={p.abrir} />
       {e.clase !== 'nota' && (
-        <h1 className="h-pagina">
-          <I size={24} className={`c-${e.clase}`} /> {e.nombre}
-        </h1>
+        <>
+          <h1 className="h-pagina">
+            <I size={24} className={`c-${e.clase}`} /> {e.titulo || e.nombre}
+            {e.titulo && <span className="archivo-real mono">{e.nombre}</span>}
+          </h1>
+          {e.descripcion && <p className="desc-pagina">{e.descripcion}</p>}
+        </>
       )}
       {cuerpo}
     </div>
