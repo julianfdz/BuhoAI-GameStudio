@@ -9,12 +9,46 @@ export const ESTADOS: { id: EstadoAsset; nombre: string }[] = [
   { id: 'aprobado', nombre: 'Aprobado' }
 ]
 
+/** Estado de una tarea (columnas del Kanban de Tareas). */
+export type EstadoTarea = 'por-hacer' | 'en-curso' | 'revisar' | 'hecha'
+export const ESTADOS_TAREA: { id: EstadoTarea; nombre: string }[] = [
+  { id: 'por-hacer', nombre: 'Por hacer' },
+  { id: 'en-curso', nombre: 'En curso' },
+  { id: 'revisar', nombre: 'Revisar' },
+  { id: 'hecha', nombre: 'Hecha' }
+]
+export type PrioridadTarea = 'alta' | 'media' | 'baja'
+export interface Paso {
+  texto: string
+  hecho: boolean
+}
+/** Una tarea: un .md de Tareas/ con cabecera `tipo: tarea` (ver src/main/tareas.ts). */
+export interface Tarea {
+  id: string
+  ruta: string
+  titulo: string
+  estado: EstadoTarea
+  prioridad: PrioridadTarea
+  asignada?: string
+  /** IDs de assets o carpetas relacionados */
+  enlaces: string[]
+  creada?: string
+  autor?: string
+  descripcion: string
+  pasos: Paso[]
+  hechos: number
+  mtime: number
+  pendientes?: number
+}
+
 /** Qué tipo de archivo es, para saber cómo enseñarlo. */
 export type Clase = 'carpeta' | 'nota' | 'imagen' | 'modelo' | 'audio' | 'video' | 'texto' | 'otro'
 
 export interface Entrada {
   /** Ruta relativa a la carpeta del proyecto, con «/». La raíz es «». */
   ruta: string
+  /** ID estable: «c-…» carpetas, «a-…» archivos, «t-…» tareas. Sigue al archivo al moverlo o renombrarlo. */
+  id: string
   nombre: string
   clase: Clase
   ext: string
@@ -76,6 +110,8 @@ export interface Evento {
   equipo: string
   accion: string
   ruta: string
+  /** ID de lo que se tocó, si tenía */
+  id?: string
   detalle?: string
 }
 
@@ -117,6 +153,17 @@ export interface Lectura {
   mtime: number
 }
 
+export interface DatosTarea {
+  titulo?: string
+  descripcion?: string
+  estado?: string
+  prioridad?: string
+  asignada?: string
+  enlaces?: string[]
+  pasos?: string[]
+  carpeta?: string
+}
+
 export interface BuhoStudioApi {
   estado: () => Promise<{ proyecto: Proyecto | null; version: string; api: string | null }>
   ajustes: () => Promise<Ajustes>
@@ -152,6 +199,12 @@ export interface BuhoStudioApi {
   revelar: (ruta: string) => Promise<void>
   abrirFuera: (ruta: string) => Promise<void>
   colorVentana: (fondo: string, simbolos: string) => Promise<void>
+  copiar: (texto: string) => Promise<void>
+  tareas: () => Promise<Tarea[]>
+  crearTarea: (d: DatosTarea) => Promise<Tarea>
+  editarTarea: (id: string, d: DatosTarea) => Promise<Tarea>
+  pasoTarea: (id: string, n: number, hecho: boolean) => Promise<Tarea>
+  anadirPasoTarea: (id: string, texto: string) => Promise<Tarea>
   rutaDeArchivo: (f: File) => string
   onCambio: (cb: (c: Cambio) => void) => () => void
 }

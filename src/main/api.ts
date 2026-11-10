@@ -11,7 +11,7 @@ import { app } from 'electron'
  * el `autor` de la petición (o «IA») y el canal (cabecera `x-buho-canal`, por defecto «cli»).
  *
  * Métodos: estado, proyectos, abrir, nuevo, cerrar, arbol, ls, leer, escribir, nota, carpeta, anadir, mover,
- * renombrar, borrar, estado-poner, estados, ficha, fichas, comentarios, comentar, responder, resolver, historial, buscar,
+ * renombrar, borrar, estado-poner, estados, ficha, fichas, id, tareas, tarea, tarea-nueva, tarea-editar, tarea-paso, comentarios, comentar, responder, resolver, historial, buscar,
  * miniatura, miniaturas, conectores, unity-enlazar, unity, blender-abrir, mostrar.
  */
 export type ApiCall = (method: string, params: Record<string, unknown>, canal: string) => Promise<unknown>

@@ -8,6 +8,9 @@ import { ICONO } from './Arbol'
 import { Markdown } from './Markdown'
 import { Visor3D } from './Visor3D'
 import { Navegacion, VideoVista } from './Medios'
+import { Collage } from './Inicio'
+import { IdChip } from './IdChip'
+import { paraQue } from '@shared/estructura'
 
 export function Migas({ ruta, nombre, ir }: { ruta: string; nombre: string; ir: (r: string) => void }): React.JSX.Element {
   const partes = ruta ? ruta.split('/') : []
@@ -55,7 +58,7 @@ function BotonAudio({ ruta, v }: { ruta: string; v: number }): React.JSX.Element
   )
 }
 
-function Tarjeta({ e, abrir, sel }: { e: Entrada; abrir: (r: string) => void; sel: boolean }): React.JSX.Element {
+function Tarjeta({ e, abrir, sel, menu }: { e: Entrada; abrir: (r: string) => void; sel: boolean; menu: (e: Entrada, x: number, y: number) => void }): React.JSX.Element {
   const mini = useMiniatura(e)
   const I = ICONO[e.clase]
   let fondo: React.ReactNode
@@ -90,10 +93,14 @@ function Tarjeta({ e, abrir, sel }: { e: Entrada; abrir: (r: string) => void; se
       onClick={() => abrir(e.ruta)}
       draggable
       onDragStart={(ev) => ev.dataTransfer.setData('text/x-buho-ruta', e.ruta)}
-      title={[e.titulo, e.ruta, e.descripcion].filter(Boolean).join('\n')}
+      onContextMenu={(ev) => {
+        ev.preventDefault()
+        menu(e, ev.clientX, ev.clientY)
+      }}
+      title={[e.titulo, e.ruta, e.id, e.descripcion].filter(Boolean).join('\n')}
     >
-      <div className={`mini ${e.clase === 'modelo' || e.clase === 'imagen' || e.clase === 'video' ? 'oscura' : ''}`}>
-        {fondo}
+      <div className={`mini ${e.clase === 'modelo' || e.clase === 'imagen' || e.clase === 'video' ? 'oscura' : ''} ${e.clase === 'carpeta' ? 'con-collage' : ''}`}>
+        {e.clase === 'carpeta' ? <Collage e={e} /> : fondo}
         {e.estado && <span className={`sello e-${e.estado}`}>{ESTADOS.find((x) => x.id === e.estado)?.nombre}</span>}
         {e.pendientes ? <span className="sello-com">{e.pendientes}</span> : null}
       </div>
@@ -119,6 +126,7 @@ export function Galeria(p: {
   subir: (c: string) => void
   soltar: (c: string, archivos: string[]) => void
   mover: (r: string, c: string) => void
+  menu: (e: Entrada, x: number, y: number) => void
 }): React.JSX.Element {
   const ruta = p.carpeta?.ruta ?? ''
   const [filtro, setFiltro] = useState<EstadoAsset | 'todos'>('todos')
@@ -156,8 +164,10 @@ export function Galeria(p: {
       <div className="cabecera">
         <div>
           <h1 className="h-pagina">
-            <Folder size={26} className="c-carpeta" /> {ruta ? nombreDe(ruta) : p.nombreProyecto}
+            <Folder size={26} className="c-carpeta" /> {p.carpeta?.titulo ?? (ruta ? nombreDe(ruta) : p.nombreProyecto)}
+            {p.carpeta?.id && <IdChip id={p.carpeta.id} />}
           </h1>
+          {(p.carpeta?.descripcion || paraQue(ruta)) && <p className="desc-pagina">{p.carpeta?.descripcion || paraQue(ruta)}</p>}
           <p className="muted">{p.hijos.length ? `${p.hijos.filter((h) => h.clase === 'carpeta').length} carpetas · ${p.hijos.filter((h) => h.clase !== 'carpeta').length} archivos aquí` : 'Carpeta vacía: suelta archivos aquí o crea una nota.'}</p>
         </div>
         <div className="fila">
@@ -185,7 +195,7 @@ export function Galeria(p: {
       </div>
       <div className="rejilla">
         {lista.map((h) => (
-          <Tarjeta key={h.ruta} e={h} abrir={p.ir} sel={p.sel === h.ruta} />
+          <Tarjeta key={h.ruta} e={h} abrir={p.ir} sel={p.sel === h.ruta} menu={p.menu} />
         ))}
       </div>
       {sobre && <div className="velo-soltar">Suelta para copiar a «{ruta || p.nombreProyecto}»</div>}
@@ -346,6 +356,7 @@ export function ArchivoVista(p: { e: Entrada; idx: Map<string, Entrada>; hermano
           <h1 className="h-pagina">
             <I size={24} className={`c-${e.clase}`} /> {e.titulo || e.nombre}
             {e.titulo && <span className="archivo-real mono">{e.nombre}</span>}
+            {e.id && <IdChip id={e.id} />}
           </h1>
           {e.descripcion && <p className="desc-pagina">{e.descripcion}</p>}
           <Navegacion e={e} hermanos={p.hermanos} abrir={p.abrir} />

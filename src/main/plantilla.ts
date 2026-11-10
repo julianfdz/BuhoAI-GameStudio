@@ -1,3 +1,5 @@
+import { PLANTILLA_IA_CONTEXT } from '@shared/plantillaIa'
+
 /**
  * Plantilla estándar de un proyecto nuevo. Las claves que acaban en «/» son carpetas vacías; el resto, archivos.
  * Después todo es personalizable: son carpetas normales.
@@ -17,11 +19,13 @@ Proyecto de **Búho Game Studio**. Es una carpeta normal: puedes abrirla con el 
 | \`Tareas/\` | Hitos y lista de pendientes del equipo |
 | \`Capturas/\` | Capturas del juego para revisar o enseñar |
 | \`Builds/\` | Ejecutables o enlaces a las versiones que se prueban |
+| \`Sin procesar/\` | Bandeja de entrada: lo que llega y aún no se ha trabajado; se procesa cuando se pide |
 
 Cada archivo puede tener un **estado** (idea → en curso → revisar → aprobado) y **comentarios**. Los agentes de IA trabajan
 con el CLI \`buho-studio\` y lo que hacen aparece al momento en la app.
 `
     ),
+    'Contexto/ia_context.md': PLANTILLA_IA_CONTEXT(nombre),
     'Contexto/Lore.md': nota('Lore', `
 El mundo del juego: qué pasó antes, cómo funciona, qué reglas tiene.
 
@@ -94,6 +98,7 @@ Enlaces, juegos y documentos de inspiración. Las imágenes van en \`Assets/Imá
 - [ ]
 `),
     'Capturas/': '',
+    'Sin procesar/': '',
     'Builds/': ''
   }
 }

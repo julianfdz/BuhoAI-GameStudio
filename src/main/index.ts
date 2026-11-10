@@ -1,12 +1,12 @@
-import { app, BrowserWindow, dialog, ipcMain, Menu, net, protocol, shell } from 'electron'
+import { app, BrowserWindow, clipboard, dialog, ipcMain, Menu, protocol, shell } from 'electron'
 import { createReadStream, existsSync, mkdirSync, statSync, watch, type FSWatcher } from 'node:fs'
 import { Readable } from 'node:stream'
 import { dirname, extname, join } from 'node:path'
 import { hostname, tmpdir } from 'node:os'
-import { pathToFileURL } from 'node:url'
 import { randomBytes } from 'node:crypto'
 import type { Cambio, Evento, Proyecto } from '@shared/types'
 import * as est from './estudio'
+import * as tar from './tareas'
 import { apuntarReciente, guardarAjustes, leerAjustes, quitarReciente } from './ajustes'
 import { apiUrl, startApi, stopApi } from './api'
 import { syncAgentSkills } from './agentSkills'
@@ -194,8 +194,8 @@ function createWindow(): void {
     minHeight: 620,
     title: 'Búho Game Studio',
     titleBarStyle: 'hidden',
-    titleBarOverlay: { color: '#0A1F3A', symbolColor: '#ffffff', height: 40 },
-    backgroundColor: '#0b1626',
+    titleBarOverlay: { color: '#f0eee6', symbolColor: '#141413', height: 40 },
+    backgroundColor: '#faf9f5',
     icon: join(__dirname, '../../build/icon.png'),
     show: false,
     webPreferences: { preload: join(__dirname, '../preload/index.js'), sandbox: false, contextIsolation: true }
@@ -283,6 +283,24 @@ function registerIpc(): void {
     est.ponerFicha(r, c, A().autor)
     return hecho(A(), 'edita ficha', [r], est.entrada(r), resumenFicha(c))
   })
+  ipcMain.handle('copiar', (_e, t: string) => clipboard.writeText(String(t)))
+  ipcMain.handle('tareas', () => (est.proyectoActual() ? tar.listar() : []))
+  ipcMain.handle('crearTarea', (_e, d: tar.DatosTarea) => {
+    const t = tar.crear(d, A().autor)
+    return hecho(A(), 'crea tarea', [t.ruta], t, t.titulo)
+  })
+  ipcMain.handle('editarTarea', (_e, id: string, d: tar.DatosTarea) => {
+    const t = tar.editar(id, d)
+    return hecho(A(), d.estado ? `tarea: ${d.estado}` : 'edita tarea', [t.ruta], t, t.titulo)
+  })
+  ipcMain.handle('pasoTarea', (_e, id: string, n: number, v: boolean) => {
+    const t = tar.marcarPaso(id, n, v)
+    return hecho(A(), v ? `marca paso ${n}` : `desmarca paso ${n}`, [t.ruta], t, t.pasos[n - 1]?.texto)
+  })
+  ipcMain.handle('anadirPasoTarea', (_e, id: string, texto: string) => {
+    const t = tar.anadirPaso(id, texto)
+    return hecho(A(), 'añade paso', [t.ruta], t, texto)
+  })
   // Los botones de la ventana (minimizar, cerrar…) siguen el color de la barra del tema
   ipcMain.handle('colorVentana', (_e, fondo: string, simbolos: string) => {
     try {
@@ -337,6 +355,12 @@ const resumenFicha = (c: { titulo?: string; descripcion?: string }): string =>
   [c.titulo !== undefined ? `nombre: ${c.titulo || '(sin nombre)'}` : '', c.descripcion !== undefined ? `descripción: ${(c.descripcion || '(sin descripción)').slice(0, 100)}` : '']
     .filter(Boolean)
     .join(' · ')
+function datosTarea(p: Record<string, unknown>): tar.DatosTarea {
+  const txt = (k: string): string | undefined => (p[k] === undefined || p[k] === null ? undefined : String(p[k]))
+  const xs = (k: string): string[] | undefined =>
+    p[k] === undefined ? undefined : Array.isArray(p[k]) ? (p[k] as unknown[]).map(String) : String(p[k]).split(/[;,]/).map((x) => x.trim()).filter(Boolean)
+  return { titulo: txt('titulo'), descripcion: txt('descripcion'), estado: txt('estado'), prioridad: txt('prioridad'), asignada: txt('asignada'), enlaces: xs('enlaces'), pasos: xs('pasos'), carpeta: txt('carpeta') }
+}
 const S = (v: unknown): string => (v === undefined || v === null ? '' : String(v))
 const lista = (v: unknown): string[] => (Array.isArray(v) ? v.map(String) : v ? [String(v)] : [])
 
@@ -427,6 +451,49 @@ async function apiCall(m: string, p: Record<string, unknown>, canal: string): Pr
         .plano()
         .filter((x) => x.clase !== 'carpeta' && x.clase !== 'nota' && dentro(x.ruta) && (!x.titulo || !x.descripcion))
         .map((x) => ({ ruta: x.ruta, clase: x.clase, titulo: x.titulo, descripcion: x.descripcion }))
+    }
+    case 'id': {
+      const q = S(p.q).trim()
+      if (est.ES_ID.test(q)) {
+        let ruta: string
+        try {
+          ruta = est.rutaDeId(q)
+        } catch {
+          const fuera = est.buscarIdEn(
+            leerAjustes().recientes.map((r) => r.raiz).filter((r) => r !== est.raizActual()),
+            q
+          )
+          if (fuera) return { id: q.toLowerCase(), ruta: fuera.ruta, proyecto: fuera.raiz, abierto: false, aviso: `Está en otro proyecto: ábrelo con «buho-studio abrir "${fuera.raiz}"»` }
+          throw new Error(`No hay nada con la ID ${q} en este proyecto ni en los recientes`)
+        }
+        const { hijos, ...e } = est.entrada(ruta)
+        return { ...e, proyecto: est.raizActual(), abierto: true, ...(hijos ? { elementos: hijos.length } : {}), ...(q.startsWith('t-') ? { tarea: tar.una(q) } : {}) }
+      }
+      const { hijos, ...e } = est.entrada(q)
+      return { ...e, proyecto: est.raizActual(), abierto: true, ...(hijos ? { elementos: hijos.length } : {}) }
+    }
+    case 'tareas':
+      return tar.listar({ estado: p.estado ? S(p.estado) : undefined, asignada: p.asignada ? S(p.asignada) : undefined })
+    case 'tarea':
+      return tar.una(S(p.id))
+    case 'tarea-nueva': {
+      const t = tar.crear(datosTarea(p), F.autor)
+      return hecho(F, 'crea tarea', [t.ruta], t, t.titulo)
+    }
+    case 'tarea-editar': {
+      const d = datosTarea(p)
+      const t = tar.editar(S(p.id), d)
+      return hecho(F, d.estado && Object.keys(p).filter((k) => !['id', 'autor', 'estado'].includes(k)).length === 0 ? `tarea: ${d.estado}` : 'edita tarea', [t.ruta], t, t.titulo)
+    }
+    case 'tarea-paso': {
+      if (p.nuevo !== undefined) {
+        const t = tar.anadirPaso(S(p.id), S(p.nuevo))
+        return hecho(F, 'añade paso', [t.ruta], t, S(p.nuevo))
+      }
+      const n = Number(p.n)
+      const v = p.hecho !== false
+      const t = tar.marcarPaso(S(p.id), n, v)
+      return hecho(F, v ? `marca paso ${n}` : `desmarca paso ${n}`, [t.ruta], t, t.pasos[n - 1]?.texto)
     }
     case 'estados': {
       const xs = est.listarEstados()

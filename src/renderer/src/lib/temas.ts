@@ -19,6 +19,20 @@ const ARCADE = "Bahnschrift, 'Segoe UI Variable Display', 'Segoe UI', sans-serif
 
 export const TEMAS: Tema[] = [
   {
+    id: 'claude',
+    nombre: 'Claude',
+    descripcion: 'Crema cálido y terracota',
+    muestra: ['#faf9f5', '#f0eee6', '#d97757', '#141413'],
+    vars: {
+      '--bg': '#faf9f5', '--panel': '#ffffff', '--fg': '#141413', '--muted': '#73726c', '--line': '#e0dccf', '--line-soft': '#ebe8de', '--soft': '#f0eee6', '--input': '#ffffff',
+      '--acc': '#d97757', '--acc-2': '#c15f3c', '--acc-suave': '#f6e3da', '--acc-fg': '#ffffff',
+      '--barra': '#f0eee6', '--barra-fg': '#141413', '--barra-linea': 'linear-gradient(90deg, #d97757, #d97757 18%, transparent 18%)',
+      '--side': '#f5f4ee', '--side-2': '#ffffff', '--side-3': '#e0dccf', '--side-fg': '#3d3d3a', '--side-muted': '#8a877f', '--side-fuerte': '#141413',
+      '--sel-bg': '#e8e4d8', '--sel-fg': '#141413', '--primario': '#d97757', '--primario-fg': '#ffffff',
+      '--escenario': '#1f1e1d', '--escenario-2': '#3a3936', '--sombra': 'rgba(20, 20, 19, 0.08)', '--titulos': SERIF
+    }
+  },
+  {
     id: 'buho',
     nombre: 'Búho',
     descripcion: 'Navy y turquesa, la marca de Búho AI',
@@ -45,20 +59,6 @@ export const TEMAS: Tema[] = [
       '--side': '#0a1322', '--side-2': '#132036', '--side-3': '#1e2e48', '--side-fg': '#cfdbea', '--side-muted': '#7f93ad', '--side-fuerte': '#ffffff',
       '--sel-bg': '#00c1b8', '--sel-fg': '#04201f', '--primario': '#00c1b8', '--primario-fg': '#04201f',
       '--escenario': '#060b14', '--escenario-2': '#13213a', '--sombra': 'rgba(0, 0, 0, 0.45)', '--titulos': SERIF
-    }
-  },
-  {
-    id: 'claude',
-    nombre: 'Claude',
-    descripcion: 'Crema cálido y terracota',
-    muestra: ['#faf9f5', '#f0eee6', '#d97757', '#141413'],
-    vars: {
-      '--bg': '#faf9f5', '--panel': '#ffffff', '--fg': '#141413', '--muted': '#73726c', '--line': '#e0dccf', '--line-soft': '#ebe8de', '--soft': '#f0eee6', '--input': '#ffffff',
-      '--acc': '#d97757', '--acc-2': '#c15f3c', '--acc-suave': '#f6e3da', '--acc-fg': '#ffffff',
-      '--barra': '#f0eee6', '--barra-fg': '#141413', '--barra-linea': 'linear-gradient(90deg, #d97757, #d97757 18%, transparent 18%)',
-      '--side': '#f5f4ee', '--side-2': '#ffffff', '--side-3': '#e0dccf', '--side-fg': '#3d3d3a', '--side-muted': '#8a877f', '--side-fuerte': '#141413',
-      '--sel-bg': '#e8e4d8', '--sel-fg': '#141413', '--primario': '#d97757', '--primario-fg': '#ffffff',
-      '--escenario': '#1f1e1d', '--escenario-2': '#3a3936', '--sombra': 'rgba(20, 20, 19, 0.08)', '--titulos': SERIF
     }
   },
   {
@@ -106,7 +106,9 @@ export const TEMAS: Tema[] = [
   }
 ]
 
-export const temaDe = (id?: string): Tema => TEMAS.find((t) => t.id === id) ?? TEMAS[0]
+/** Claude es el estilo por defecto. */
+export const TEMA_DEFECTO = 'claude'
+export const temaDe = (id?: string): Tema => TEMAS.find((t) => t.id === id) ?? TEMAS.find((t) => t.id === TEMA_DEFECTO)!
 
 /** Pone el tema en la página y le dice al proceso principal de qué color pintar los botones de la ventana. */
 export function aplicarTema(id?: string): Tema {
@@ -116,6 +118,11 @@ export function aplicarTema(id?: string): Tema {
   for (const [k, v] of Object.entries(t.vars)) root.style.setProperty(k, v)
   root.style.colorScheme = t.oscuro ? 'dark' : 'light'
   root.dataset.tema = t.id
+  try {
+    localStorage.setItem('estudio:tema', t.id)
+  } catch {
+    /* sin almacenamiento */
+  }
   void window.buho.colorVentana(t.vars['--barra'], t.vars['--barra-fg'])
   return t
 }

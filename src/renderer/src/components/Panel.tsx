@@ -3,6 +3,7 @@ import { Bot, Check, CornerDownRight, ExternalLink, FolderSearch, ImageUp, Send,
 import { ESTADOS, type Comentario, type Entrada, type Evento } from '@shared/types'
 import { fecha, tam } from '@/lib/util'
 import { rehacerMiniatura } from '@/lib/miniaturas'
+import { IdChip } from './IdChip'
 
 const Quien = ({ origen }: { origen: string }): React.JSX.Element => (origen === 'ia' ? <Bot size={13} className="c-ia" /> : origen === 'externo' ? <FolderSearch size={13} /> : <User size={13} />)
 
@@ -52,7 +53,7 @@ function Ficha({ e }: { e: Entrada }): React.JSX.Element {
 }
 
 /** Panel de la derecha: datos, ficha, estado, comentarios (con respuestas) e historial firmado del elemento elegido. */
-export function Panel({ e, version, nombreProyecto, aviso }: { e: Entrada | null; version: number; nombreProyecto: string; aviso: (t: string) => void }): React.JSX.Element {
+export function Panel({ e, esTarea, version, nombreProyecto, aviso }: { e: Entrada | null; esTarea?: boolean; version: number; nombreProyecto: string; aviso: (t: string) => void }): React.JSX.Element {
   const ruta = e?.ruta ?? ''
   const [coms, setComs] = useState<Comentario[]>([])
   const [hist, setHist] = useState<Evento[]>([])
@@ -73,9 +74,15 @@ export function Panel({ e, version, nombreProyecto, aviso }: { e: Entrada | null
   return (
     <aside className="panel">
       <div className="panel-bloque">
-        <div className="etiqueta">{e ? (e.clase === 'carpeta' ? 'Carpeta' : 'Archivo') : 'Proyecto'}</div>
+        <div className="etiqueta">{e ? (esTarea ? 'Tarea' : e.clase === 'carpeta' ? 'Carpeta' : 'Archivo') : 'Proyecto'}</div>
         <h3 className="panel-titulo">{e?.titulo || e?.nombre || nombreProyecto}</h3>
         {e?.titulo && <div className="pequeno">{e.nombre}</div>}
+        {e?.id && (
+          <div className="fila" style={{ margin: '6px 0 2px' }}>
+            <IdChip id={e.id} ruta={e.ruta} nombre={e.titulo ?? e.nombre} grande />
+            <span className="muted pequeno">pégala en el chat con la IA</span>
+          </div>
+        )}
         <div className="mono muted pequeno ruta">{ruta || '/'}</div>
         {e && e.clase !== 'carpeta' && (
           <div className="muted pequeno">
@@ -113,9 +120,9 @@ export function Panel({ e, version, nombreProyecto, aviso }: { e: Entrada | null
         )}
       </div>
 
-      {e && <Ficha e={e} />}
+      {e && !esTarea && <Ficha e={e} />}
 
-      {e && (
+      {e && !esTarea && (
         <div className="panel-bloque">
           <div className="etiqueta">Estado</div>
           <div className="estados">

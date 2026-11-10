@@ -17,6 +17,8 @@ extraFiles:
     to: cli
   - from: skills/buho-studio/SKILL.md
     to: cli/SKILL.md
+  - from: docs/ayuda
+    to: cli/ayuda
   - from: skills/buho-studio/SKILL.md
     to: SKILL.md
 win:

@@ -3,6 +3,8 @@
  * buho-studio · CLI de Búho Game Studio para agentes de IA (Claude, Codex, Copilot, scripts…) y personas.
  * Habla con la API local de la app (<userData>/api.json trae URL y token). Si la app está cerrada, la abre.
  * Las rutas son relativas a la carpeta del proyecto abierto («Contexto/Lore.md», «Assets/Sonidos»); "" o / es la raíz.
+ * Donde va una ruta también vale una ID («a-3f9c21b0» archivo, «c-…» carpeta, «t-…» tarea): la ID no cambia al
+ * mover o renombrar, y es lo que copia la persona en la app (clic derecho → Copiar ID) para pedirte algo.
  * Todo lo que hace queda firmado en el historial con --autor (o BUHO_AUTOR; por defecto «IA»).
  * Guía completa para agentes: `buho-studio skill`.
  *
@@ -14,7 +16,8 @@
  *   buho-studio cerrar
  *
  * Mirar
- *   buho-studio arbol [<ruta>] [--profundidad N]          árbol con estados (●) y comentarios pendientes (✉)
+ *   buho-studio id <id|ruta>                             qué es una ID (ruta, ficha, estado; busca también en otros proyectos)
+ *   buho-studio arbol [<ruta>] [--profundidad N]          árbol con IDs, estados (●) y comentarios pendientes (✉)
  *   buho-studio ls [<ruta>]                              lo que hay dentro de una carpeta
  *   buho-studio leer <ruta>                              texto de una nota o archivo de texto
  *   buho-studio buscar "texto" [--max 40]                por nombre y dentro de notas/textos
@@ -40,6 +43,19 @@
  *   buho-studio resolver <id> [--reabrir]
  *   buho-studio historial [<ruta>] [--max 50]            quién hizo qué (persona, IA o cambio externo)
  *
+ * Tareas (un .md por tarea en Tareas/, Kanban en la app)
+ *   buho-studio tareas [--estado por-hacer|en-curso|revisar|hecha] [--asignada Claude]
+ *   buho-studio tarea nueva "Título" [--descripcion "…" | --file d.md] [--prioridad alta|media|baja] [--asignada X]
+ *                           [--enlaces a-…,c-…] [--pasos "uno; dos; tres"] [--estado …]
+ *   buho-studio tarea ver <id>
+ *   buho-studio tarea mover <id> <por-hacer|en-curso|revisar|hecha>
+ *   buho-studio tarea editar <id> [--titulo] [--descripcion] [--prioridad] [--asignada] [--enlaces]
+ *   buho-studio tarea paso <id> <n> [--pendiente]        marca (o desmarca) el paso n
+ *   buho-studio tarea paso <id> --nuevo "texto"          añade un paso
+ *
+ * Ayuda
+ *   buho-studio ayuda [tema]                             la misma ayuda que la app (temas: buho-studio ayuda)
+ *
  * Assets 3D y conectores
  *   buho-studio miniatura <ruta> [--forzar] [--blender]  .glb/.fbx/.obj/.stl con three.js en la app; .blend con buho-blender
  *   buho-studio miniaturas [<carpeta>] [--forzar]        todas las de una carpeta
@@ -52,7 +68,7 @@
  *
  * Opciones globales: --json, --autor "Claude", --no-launch (no abrir la app si está cerrada).
  */
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { spawn } from 'node:child_process'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -181,11 +197,24 @@ const ICO = { carpeta: '▸', nota: '✎', imagen: '▣', modelo: '◆', audio: 
 function pintar(ns, nivel, max) {
   for (const n of ns) {
     const extra = `${n.estado ? `  ${MARCA[n.estado]} ${n.estado}` : ''}${n.pendientes ? `  ✉${n.pendientes}` : ''}`
-    print(`${'  '.repeat(nivel)}${ICO[n.clase] ?? '·'} ${n.nombre}${n.clase === 'carpeta' ? '/' : ''}${n.titulo ? `  «${n.titulo}»` : ''}${extra}`)
+    print(`${'  '.repeat(nivel)}${ICO[n.clase] ?? '·'} ${n.nombre}${n.clase === 'carpeta' ? '/' : ''}${n.titulo ? `  «${n.titulo}»` : ''}${extra}${n.id ? `  [${n.id}]` : ''}`)
     if (n.hijos && nivel + 1 < max) pintar(n.hijos, nivel + 1, max)
   }
 }
 const fecha = (iso) => String(iso).slice(0, 16).replace('T', ' ')
+const PRI = { alta: '▲', media: '■', baja: '▽' }
+function pintarTarea(t, completa = false) {
+  const avance = t.pasos.length ? `  ${t.hechos}/${t.pasos.length}` : ''
+  print(`  ${PRI[t.prioridad] ?? '·'} ${t.id}  ${t.titulo}${t.asignada ? `  @${t.asignada}` : ''}${avance}${t.pendientes ? `  ✉${t.pendientes}` : ''}`)
+  if (!completa) return
+  print(`     ${t.estado} · prioridad ${t.prioridad} · ${t.ruta}`)
+  if (t.enlaces.length) print(`     Enlaces: ${t.enlaces.join(', ')}`)
+  if (t.descripcion) print('\n' + t.descripcion.split('\n').map((l) => '     ' + l).join('\n'))
+  if (t.pasos.length) {
+    print('\n     Pasos:')
+    t.pasos.forEach((p, i) => print(`     ${i + 1}. [${p.hecho ? 'x' : ' '}] ${p.texto}`))
+  }
+}
 function pintarComentarios(cs) {
   const raices = cs.filter((c) => !c.respuestaA)
   if (!raices.length) return print('Sin comentarios.')
@@ -199,7 +228,6 @@ function pintarComentarios(cs) {
 async function main() {
   switch (cmd) {
     case undefined:
-    case 'ayuda':
     case 'help':
     case '-h':
     case '--help': {
@@ -322,6 +350,95 @@ async function main() {
         print(`   ${x.titulo ?? '(sin nombre)'}${x.descripcion ? ` · ${x.descripcion}` : '  · (sin descripción)'}`)
       }
       return
+    }
+    case 'id': {
+      necesita(1, 'id <id|ruta>')
+      const r = await call('id', { q: args.join(' ') })
+      if (opt.json) return out(r)
+      print(`${r.id}  ${r.ruta || '/'}${r.abierto ? '' : '   (en otro proyecto)'}`)
+      if (r.titulo) print(`  Nombre:       ${r.titulo}`)
+      if (r.descripcion) print(`  Descripción:  ${r.descripcion}`)
+      if (r.clase) print(`  Tipo:         ${r.clase}${r.elementos !== undefined ? ` (${r.elementos} elementos)` : ''}`)
+      if (r.estado) print(`  Estado:       ${r.estado}`)
+      if (r.pendientes) print(`  Comentarios:  ${r.pendientes} sin resolver`)
+      if (r.tarea) print(`  Tarea:        ${r.tarea.estado} · ${r.tarea.prioridad}${r.tarea.asignada ? ` · ${r.tarea.asignada}` : ''} · ${r.tarea.hechos}/${r.tarea.pasos.length} pasos`)
+      print(`  Proyecto:     ${r.proyecto}`)
+      if (r.aviso) print(`  ${r.aviso}`)
+      return
+    }
+    case 'tareas': {
+      const r = await call('tareas', { estado: opt.estado, asignada: opt.asignada })
+      if (opt.json) return out(r)
+      if (!r.length) return print('No hay tareas. Crea una con «buho-studio tarea nueva "Título"».')
+      for (const col of ['por-hacer', 'en-curso', 'revisar', 'hecha']) {
+        const xs = r.filter((t) => t.estado === col)
+        if (!xs.length) continue
+        print(`\n${col.toUpperCase()} (${xs.length})`)
+        for (const t of xs) pintarTarea(t)
+      }
+      return
+    }
+    case 'tarea': {
+      const sub = args[0]
+      const id = args[1]
+      const texto = async () => (typeof opt.file === 'string' ? readFileSync(resolve(opt.file), 'utf8') : typeof opt.descripcion === 'string' ? opt.descripcion.replace(/\\n/g, '\n') : undefined)
+      const comunes = async () => ({
+        titulo: typeof opt.titulo === 'string' ? opt.titulo : undefined,
+        descripcion: await texto(),
+        prioridad: opt.prioridad,
+        asignada: opt.asignada === true ? '' : opt.asignada,
+        enlaces: typeof opt.enlaces === 'string' ? opt.enlaces : opt.enlaces === true ? '' : undefined,
+        pasos: typeof opt.pasos === 'string' ? opt.pasos : undefined,
+        estado: opt.estado
+      })
+      const mostrar = (t) => {
+        if (opt.json) return out(t)
+        pintarTarea(t, true)
+      }
+      if (sub === 'nueva') {
+        if (args.length < 2) die('Uso: buho-studio tarea nueva "Título" [--descripcion "…"] [--prioridad alta|media|baja] [--asignada X] [--enlaces a-…,c-…] [--pasos "uno; dos"]')
+        return mostrar(await call('tarea-nueva', { ...(await comunes()), titulo: args.slice(1).join(' '), carpeta: opt.carpeta }))
+      }
+      if (sub === 'ver') {
+        necesita(2, 'tarea ver <id>')
+        return mostrar(await call('tarea', { id }))
+      }
+      if (sub === 'mover') {
+        necesita(3, 'tarea mover <id> <por-hacer|en-curso|revisar|hecha>')
+        return mostrar(await call('tarea-editar', { id, estado: args[2] }))
+      }
+      if (sub === 'editar') {
+        necesita(2, 'tarea editar <id> [--titulo] [--descripcion] [--prioridad] [--asignada] [--enlaces]')
+        return mostrar(await call('tarea-editar', { id, ...(await comunes()) }))
+      }
+      if (sub === 'paso') {
+        necesita(2, 'tarea paso <id> <n> [--pendiente] | tarea paso <id> --nuevo "texto"')
+        if (typeof opt.nuevo === 'string') return mostrar(await call('tarea-paso', { id, nuevo: opt.nuevo }))
+        if (!args[2]) die('Falta el número del paso (o --nuevo "texto")')
+        return mostrar(await call('tarea-paso', { id, n: Number(args[2]), hecho: !opt.pendiente }))
+      }
+      die('Uso: buho-studio tarea nueva|ver|mover|editar|paso …  (mira «buho-studio ayuda tareas»)')
+    }
+    case 'ayuda': {
+      const dir = [join(here, 'ayuda'), join(here, '..', 'docs', 'ayuda')].find((d) => existsSync(d))
+      if (!dir) die('No encuentro la ayuda (docs/ayuda).')
+      const paginas = readdirSync(dir)
+        .filter((f) => f.endsWith('.md'))
+        .sort()
+        .map((f) => {
+          const txt = readFileSync(join(dir, f), 'utf8').replace(/^---[\s\S]*?---\r?\n/, '')
+          return { id: f.replace(/\.md$/, '').replace(/^\d+-/, ''), titulo: /^#\s+(.+)$/m.exec(txt)?.[1] ?? f, txt }
+        })
+      if (!args[0]) {
+        print('Órdenes del CLI: buho-studio help · guía para agentes: buho-studio skill\n')
+        print('Temas de ayuda (buho-studio ayuda <tema>):')
+        for (const x of paginas) print(`  ${x.id.padEnd(22)} ${x.titulo}`)
+        return
+      }
+      const q = args.join(' ').toLowerCase()
+      const x = paginas.find((y) => y.id === q) ?? paginas.find((y) => y.id.includes(q) || y.titulo.toLowerCase().includes(q))
+      if (!x) die(`No hay ningún tema «${q}». Mira «buho-studio ayuda».`)
+      return process.stdout.write(x.txt)
     }
     case 'estados': {
       const r = await call('estados', { estado: opt.estado })

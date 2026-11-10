@@ -389,3 +389,83 @@ code, .mono { font-family: var(--mono); font-size: 12px; }
 .collage { overflow: hidden; grid-auto-rows: minmax(0, 1fr); }
 .celda > img, .celda > .muestra-video { position: absolute; inset: 0; width: 100%; height: 100%; }
 .celda > svg { position: relative; }
+
+/* ---------------- IDs */
+.id-chip { display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--line); background: var(--soft); color: var(--muted); border-radius: 7px; padding: 1px 7px; cursor: pointer; font-size: 11px; line-height: 1.6; vertical-align: middle; flex-shrink: 0; }
+.id-chip .mono { font-size: 11px; }
+.id-chip:hover { border-color: var(--acc); color: var(--fg); }
+.id-chip.grande { padding: 3px 9px; }
+.h-pagina .id-chip { margin-left: 6px; }
+.menu button { display: flex; align-items: center; gap: 10px; }
+
+/* ---------------- carpetas con collage en la galería */
+.mini.con-collage { background: var(--escenario); }
+.mini.con-collage .collage { position: absolute; inset: 0; aspect-ratio: auto; }
+.ficha-archivo { background: linear-gradient(160deg, var(--soft), color-mix(in srgb, var(--acc-suave) 70%, var(--panel))); }
+.ficha-arch { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 6px; text-align: center; }
+.ficha-arch span { font-size: 10.5px; color: var(--fg); line-height: 1.2; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; word-break: break-word; max-width: 100%; }
+.collage.n1 .ficha-arch span { font-size: 12.5px; }
+
+/* ---------------- tareas */
+.app.vista-tareas, .app.vista-ayuda { grid-template-columns: 290px minmax(0, 1fr) 0; }
+.app.vista-tareas > .panel, .app.vista-ayuda > .panel { display: none; }
+.app.vista-tareas .avisos, .app.vista-ayuda .avisos { right: 20px; }
+.buscador-claro { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: var(--input); border-radius: 8px; padding: 5px 9px; color: var(--muted); }
+.buscador-claro input { border: 0; outline: 0; background: transparent; min-width: 180px; color: var(--fg); }
+.selector { border: 1px solid var(--line); background: var(--input); border-radius: 8px; padding: 6px 9px; color: var(--fg); }
+.kanban { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; align-items: start; }
+.kan-col { background: color-mix(in srgb, var(--soft) 70%, var(--bg)); border: 1px solid var(--line-soft); border-radius: 16px; padding: 10px; display: flex; flex-direction: column; gap: 10px; min-height: 240px; border-top: 4px solid var(--line); transition: background 0.12s, box-shadow 0.12s; }
+.kan-col.sobre { background: var(--acc-suave); box-shadow: inset 0 0 0 2px var(--acc); }
+.kan-cabeza { display: flex; align-items: center; gap: 8px; padding: 2px 4px; }
+.t-por-hacer { --c: #94a3b8; } .t-en-curso { --c: var(--e-en-curso); } .t-revisar { --c: var(--e-revisar); } .t-hecha { --c: var(--e-aprobado); }
+.kan-col.t-por-hacer, .kan-col.t-en-curso, .kan-col.t-revisar, .kan-col.t-hecha { border-top-color: var(--c); }
+.bola.t-por-hacer, .bola.t-en-curso, .bola.t-revisar, .bola.t-hecha { background: var(--c); }
+.kan-tarjeta { display: flex; flex-direction: column; gap: 7px; text-align: left; border: 1px solid var(--line); background: var(--panel); border-radius: 12px; padding: 10px 12px; cursor: grab; border-left: 4px solid var(--line); transition: transform 0.1s, box-shadow 0.15s, border-color 0.15s; }
+.kan-tarjeta:hover { transform: translateY(-2px); box-shadow: 0 10px 22px var(--sombra); border-color: var(--acc); }
+.kan-tarjeta.pri-alta { border-left-color: #ef4444; } .kan-tarjeta.pri-media { border-left-color: #f59e0b; } .kan-tarjeta.pri-baja { border-left-color: #94a3b8; }
+.kan-titulo { font-size: 14px; line-height: 1.3; }
+.kan-vacia { padding: 10px 6px; text-align: center; }
+.pri { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; padding: 1px 7px; border-radius: 999px; background: var(--soft); color: var(--muted); }
+.pri.pri-alta { background: #fee2e2; color: #b91c1c; } .pri.pri-media { background: #fef3c7; color: #92400e; } .pri.pri-baja { background: var(--soft); color: var(--muted); }
+.asignada { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; padding: 1px 8px; border-radius: 999px; background: var(--soft); color: var(--fg); }
+.asignada.ia { background: var(--acc-suave); color: color-mix(in srgb, var(--acc) 60%, var(--fg)); }
+.avance { display: inline-flex; align-items: center; gap: 6px; }
+.avance-barra { width: 70px; height: 6px; border-radius: 99px; background: var(--line-soft); overflow: hidden; display: inline-block; }
+.avance-barra i { display: block; height: 100%; background: var(--e-aprobado); border-radius: 99px; }
+.kan-enlaces { display: flex; gap: 5px; align-items: center; }
+.kan-enlace { width: 40px; height: 40px; border-radius: 8px; overflow: hidden; position: relative; background: var(--escenario); display: inline-flex; align-items: center; justify-content: center; color: #fff; font-size: 12px; }
+.kan-enlace .collage { position: absolute; inset: 0; aspect-ratio: auto; }
+.kan-enlace .ficha-arch span { display: none; }
+.kan-enlace.roto, .chip.roto { background: #fee2e2; color: #b91c1c; }
+.dialogo.ancho { min-width: 620px; max-width: 720px; }
+.dialogo textarea.campo { resize: vertical; font: inherit; }
+.dialogo label { display: flex; flex-direction: column; gap: 3px; }
+.form-fila { display: flex; gap: 12px; align-items: flex-end; }
+.form-fila .campo { min-width: 0; }
+.tarea-vista { max-width: 980px; }
+.tarea-barra { gap: 10px; margin: 4px 0 6px; }
+.tarea-barra .segmentado button { gap: 6px; }
+.rejilla-enlaces { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px; }
+.seccion-tarjeta.roto { border-style: dashed; cursor: default; }
+.pasos { list-style: none; margin: 8px 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.pasos li { display: flex; align-items: center; gap: 8px; padding: 4px 6px; border-radius: 8px; }
+.pasos li:hover { background: var(--soft); }
+.pasos li.hecho span { color: var(--muted); text-decoration: line-through; }
+.pendiente.tareas { border-left-color: var(--acc); }
+.pendientes { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+
+/* ---------------- ayuda */
+.ayuda { display: grid; grid-template-columns: 270px minmax(0, 1fr); height: 100%; }
+.ayuda-indice { border-right: 1px solid var(--line-soft); padding: 18px 14px; overflow: auto; display: flex; flex-direction: column; gap: 14px; background: var(--panel); }
+.ayuda-indice ul { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.ayuda-indice li button { width: 100%; text-align: left; border: 0; background: none; padding: 6px 10px; border-radius: 8px; cursor: pointer; }
+.ayuda-indice li button:hover { background: var(--soft); }
+.ayuda-indice li button.on { background: var(--sel-bg); color: var(--sel-fg); font-weight: 600; }
+.ayuda-indice .buscador-claro input { min-width: 0; flex: 1; }
+.ayuda-cli { display: block; margin-top: auto; line-height: 1.5; }
+.ayuda-cli svg { vertical-align: -2px; margin-right: 4px; }
+.ayuda-cuerpo { overflow: auto; padding: 26px 34px 60px; }
+.ayuda-cuerpo .vista-md { max-width: 900px; }
+.principal:has(.ayuda) { overflow: hidden; }
+.pendiente.bandeja { border-left-color: #8b5cf6; }
+.pendientes { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }

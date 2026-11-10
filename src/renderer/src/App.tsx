@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Activity, Bot, Check, FilePlus2, FolderOpen, FolderPlus, FolderTree, House, KanbanSquare, LogOut, Palette, Plug, Search, Upload, X } from 'lucide-react'
-import type { Ajustes, Entrada, Proyecto } from '@shared/types'
+import { Activity, Bot, Check, CircleHelp, FilePlus2, FolderOpen, FolderPlus, FolderTree, House, KanbanSquare, ListTodo, LogOut, Palette, Plug, Search, Upload, X } from 'lucide-react'
+import type { Ajustes, DatosTarea, Entrada, Proyecto, Tarea } from '@shared/types'
+import { PLANTILLA_IA_CONTEXT } from '@shared/plantillaIa'
 import { guardarLocal, indexar, leerLocal, nombreDe, padreDe } from '@/lib/util'
 import { pintarYGuardar, refrescarMiniatura } from '@/lib/miniaturas'
 import { Arbol, ICONO, type AccionArbol } from '@/components/Arbol'
@@ -8,10 +9,14 @@ import { ArchivoVista, Galeria } from '@/components/Vistas'
 import { Panel } from '@/components/Panel'
 import { Actividad, Conectores, Portada, Tablero } from '@/components/Paneles'
 import { Inicio } from '@/components/Inicio'
+import { FormTarea, TareaVista, TareasVista } from '@/components/Tareas'
+import { Ayuda } from '@/components/Ayuda'
+import { IdChip, copiarId } from '@/components/IdChip'
+import { Migas } from '@/components/Vistas'
 import { TEMAS, aplicarTema } from '@/lib/temas'
 import logo from './logobuho.png'
 
-type Vista = 'inicio' | 'archivos' | 'tablero' | 'actividad' | 'conectores'
+type Vista = 'inicio' | 'archivos' | 'tareas' | 'tablero' | 'actividad' | 'conectores' | 'ayuda'
 type Pregunta = { titulo: string; valor: string; ok: (v: string) => void }
 type Menu = { e: Entrada | null; x: number; y: number }
 const limpiarError = (e: unknown): string => String((e as Error)?.message ?? e).replace(/^Error invoking remote method '[^']+': (Error: )?/, '')
@@ -24,6 +29,9 @@ export default function App(): React.JSX.Element {
   const [sel, setSel] = useState<string | null>(null)
   const [vista, setVista] = useState<Vista>('inicio')
   const [verTemas, setVerTemas] = useState(false)
+  const [tareas, setTareas] = useState<Tarea[]>([])
+  const [formTarea, setFormTarea] = useState<DatosTarea | null>(null)
+  const [verTexto, setVerTexto] = useState<string | null>(null)
   const [abiertos, setAbiertos] = useState<Set<string>>(new Set())
   const [recientes, setRecientes] = useState<Set<string>>(new Set())
   const [version, setVersion] = useState(0)
@@ -41,6 +49,12 @@ export default function App(): React.JSX.Element {
     setAvisos((a) => [...a.slice(-3), { id, texto, ia }])
     setTimeout(() => setAvisos((a) => a.filter((x) => x.id !== id)), ia ? 5200 : 3800)
   }, [])
+
+  useEffect(() => {
+    const f = (e: Event): void => aviso(String((e as CustomEvent).detail))
+    window.addEventListener('buho-aviso', f)
+    return () => window.removeEventListener('buho-aviso', f)
+  }, [aviso])
 
   const cargarArbol = useCallback(async () => setArbol(await window.buho.arbol()), [])
   const cargarEstado = useCallback(async () => {
@@ -123,9 +137,15 @@ export default function App(): React.JSX.Element {
     return () => clearTimeout(t)
   }, [q, proyecto, version])
 
+  useEffect(() => {
+    if (!proyecto) return setTareas([])
+    void window.buho.tareas().then(setTareas)
+  }, [proyecto, version, arbol])
+
   // Al cambiar de archivo o de vista, el centro vuelve arriba
   useEffect(() => {
     document.querySelector('.principal')?.scrollTo(0, 0)
+    setVerTexto(null)
   }, [sel, vista])
 
   const idx = useMemo(() => indexar(arbol), [arbol])
@@ -187,6 +207,7 @@ export default function App(): React.JSX.Element {
     if (sel === r) setSel(x.ruta)
   })
 
+  const abrirMenu = (e: Entrada, x: number, y: number): void => setMenu({ e, x, y })
   const accionArbol = (a: AccionArbol): void => {
     if (a.tipo === 'menu') setMenu({ e: a.e, x: a.x, y: a.y })
     else if (a.tipo === 'mover') mover(a.ruta, a.destino)
@@ -206,9 +227,11 @@ export default function App(): React.JSX.Element {
             [
               ['inicio', House, 'Inicio'],
               ['archivos', FolderTree, 'Archivos'],
-              ['tablero', KanbanSquare, 'Tablero'],
+              ['tareas', ListTodo, 'Tareas'],
+              ['tablero', KanbanSquare, 'Estados'],
               ['actividad', Activity, 'Actividad'],
-              ['conectores', Plug, 'Conectores']
+              ['conectores', Plug, 'Conectores'],
+              ['ayuda', CircleHelp, 'Ayuda']
             ] as const
           ).map(([v, I, t]) => (
             <button key={v} className={`bb ${vista === v ? 'on' : ''}`} onClick={() => setVista(v)}>
@@ -230,7 +253,7 @@ export default function App(): React.JSX.Element {
                 {TEMAS.map((t) => (
                   <button
                     key={t.id}
-                    className={`tema ${(ajustes?.tema ?? 'buho') === t.id ? 'on' : ''}`}
+                    className={`tema ${(ajustes?.tema ?? 'claude') === t.id ? 'on' : ''}`}
                     onClick={() => {
                       aplicarTema(t.id)
                       void window.buho.guardarAjustes({ tema: t.id }).then(setAjustes)
@@ -245,7 +268,7 @@ export default function App(): React.JSX.Element {
                       <b>{t.nombre}</b>
                       <span className="pequeno muted">{t.descripcion}</span>
                     </span>
-                    {(ajustes?.tema ?? 'buho') === t.id && <Check size={16} className="c-acc" />}
+                    {(ajustes?.tema ?? 'claude') === t.id && <Check size={16} className="c-acc" />}
                   </button>
                 ))}
               </div>
@@ -282,6 +305,7 @@ export default function App(): React.JSX.Element {
       </div>
     )
 
+  const tareaElegida = elegido ? tareas.find((t) => t.ruta === elegido.ruta) ?? null : null
   const hijosDe = (r: string): Entrada[] => (r ? idx.get(r)?.hijos ?? [] : arbol)
   let centro: React.ReactNode
   if (q.trim())
@@ -308,7 +332,26 @@ export default function App(): React.JSX.Element {
       </div>
     )
   else if (vista === 'inicio')
-    centro = <Inicio proyecto={proyecto} arbol={arbol} planos={planos} version={version} ir={ir} irVista={(v) => setVista(v)} />
+    centro = (
+      <Inicio
+        proyecto={proyecto}
+        arbol={arbol}
+        planos={planos}
+        version={version}
+        ir={ir}
+        irVista={(v) => setVista(v)}
+        menu={abrirMenu}
+        tareasAbiertas={tareas.filter((t) => t.estado !== 'hecha').length}
+        crearIaContext={() =>
+          void intentar(async () => {
+            await window.buho.escribir('Contexto/ia_context.md', PLANTILLA_IA_CONTEXT(proyecto.nombre))
+            ir('Contexto/ia_context.md')
+          })
+        }
+      />
+    )
+  else if (vista === 'tareas') centro = <TareasVista tareas={tareas} idx={idx} abrir={ir} aviso={aviso} menu={abrirMenu} />
+  else if (vista === 'ayuda') centro = <Ayuda />
   else if (vista === 'tablero') centro = <Tablero planos={planos} abrir={ir} />
   else if (vista === 'actividad') centro = <Actividad version={version} abrir={ir} />
   else if (vista === 'conectores')
@@ -320,6 +363,17 @@ export default function App(): React.JSX.Element {
         aviso={aviso}
         guardarAjustes={(a) => void window.buho.guardarAjustes(a).then(setAjustes)}
       />
+    )
+  else if (elegido && tareaElegida && verTexto !== elegido.ruta)
+    centro = (
+      <div className="pagina archivo">
+        <Migas ruta={elegido.ruta} nombre={proyecto.nombre} ir={ir} />
+        <h1 className="h-pagina">
+          <ListTodo size={24} className="c-acc" /> {tareaElegida.titulo}
+          <IdChip id={tareaElegida.id} ruta={tareaElegida.ruta} nombre={tareaElegida.titulo} />
+        </h1>
+        <TareaVista t={tareaElegida} idx={idx} abrir={ir} aviso={aviso} editarTexto={() => setVerTexto(elegido.ruta)} />
+      </div>
     )
   else if (elegido && elegido.clase !== 'carpeta')
     centro = (
@@ -345,6 +399,7 @@ export default function App(): React.JSX.Element {
         subir={subir}
         soltar={soltar}
         mover={mover}
+        menu={abrirMenu}
       />
     )
 
@@ -378,7 +433,7 @@ export default function App(): React.JSX.Element {
         <Arbol nodos={arbol} sel={sel} abiertos={abiertos} recientes={recientes} alternar={alternar} elegir={ir} accion={accionArbol} />
       </aside>
       <main className="principal">{centro}</main>
-      <Panel e={vista === 'archivos' && !q ? elegido : null} version={version} nombreProyecto={proyecto.nombre} aviso={aviso} />
+      <Panel e={vista === 'archivos' && !q ? elegido : null} esTarea={!!tareaElegida} version={version} nombreProyecto={proyecto.nombre} aviso={aviso} />
       <footer className="estado">
         <span className="mono">{proyecto.raiz}</span>
         <span>{planos.filter((x) => x.clase !== 'carpeta').length} archivos</span>
@@ -396,6 +451,16 @@ export default function App(): React.JSX.Element {
         <>
           <div className="velo-menu" onClick={() => setMenu(null)} onContextMenu={(e) => (e.preventDefault(), setMenu(null))} />
           <div className="menu" style={{ left: Math.min(menu.x, window.innerWidth - 250), top: Math.min(menu.y, window.innerHeight - 280) }} onClick={() => setMenu(null)}>
+            {menu.e?.id && (
+              <>
+                <button onClick={() => void copiarId(menu.e!.id)}>
+                  Copiar ID <span className="mono muted pequeno der">{menu.e.id}</span>
+                </button>
+                <button onClick={() => void copiarId(menu.e!.id, `${menu.e!.id} · ${menu.e!.titulo ?? menu.e!.nombre} · ${menu.e!.ruta}`)}>Copiar ID con nombre y ruta</button>
+                <button onClick={() => setFormTarea({ enlaces: [menu.e!.id], estado: 'por-hacer' })}>Nueva tarea con esto…</button>
+                <hr />
+              </>
+            )}
             <button onClick={() => nuevaNota(carpetaDe(menu.e))}>Nueva nota</button>
             <button onClick={() => nuevaCarpeta(carpetaDe(menu.e))}>Nueva carpeta</button>
             <button onClick={() => subir(carpetaDe(menu.e))}>Subir archivos…</button>
@@ -440,6 +505,18 @@ export default function App(): React.JSX.Element {
         </>
       )}
       {pregunta && <Preguntar p={pregunta} cerrar={() => setPregunta(null)} />}
+      {formTarea && (
+        <FormTarea
+          titulo="Nueva tarea"
+          inicial={formTarea}
+          idx={idx}
+          cerrar={() => setFormTarea(null)}
+          guardar={async (d) => {
+            const t = await window.buho.crearTarea(d)
+            aviso(`Tarea creada: ${t.id}`)
+          }}
+        />
+      )}
       <Avisos avisos={avisos} />
     </div>
   )

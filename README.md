@@ -14,11 +14,14 @@ No depende de ningún motor: Unity, Godot o Unreal se enlazan como conectores op
 
 | | |
 |---|---|
+| **IDs** | Todo (archivo, carpeta, tarea) tiene una ID estable (`a-…`, `c-…`, `t-…`) que no cambia al mover o renombrar. Clic derecho → **Copiar ID** y la pegas en el chat con la IA: «cambia `a-3f9c21b0`…». El CLI acepta IDs donde va una ruta. |
+| **Tareas** | Kanban (por hacer, en curso, revisar, hecha) con prioridad, asignada (persona o agente), assets enlazados por ID y pasos marcables. Cada tarea es un `.md` en `Tareas/`; los agentes las crean y mueven con `buho-studio tarea`. |
+| **Ayuda** | Ayuda dentro de la app (`docs/ayuda/`), la misma que leen los agentes con `buho-studio ayuda`. |
 | **Inicio** | Portada del proyecto con sus cifras, lo pendiente (por revisar, en curso, comentarios) y una tarjeta por sección (Contexto, Assets, Capturas, Gameplay…) con miniaturas de lo que hay dentro. |
-| **Estilos** | Seis preajustes de color desde el botón «Estilo» de la barra: Búho, Búho noche, Claude, Búho AI tinta, Arcade y Blanco y negro. |
+| **Estilos** | Seis preajustes de color desde el botón «Estilo» de la barra: Claude (por defecto), Búho, Búho noche, Búho AI tinta, Arcade y Blanco y negro. |
 | **Gameplays** | Reproductor con saltos de ±10 s (J/L), velocidad de 0,5× a 4×, anterior/siguiente (AvPág/RePág o Alt+flechas), «al acabar, el siguiente» y tira con los demás vídeos de la carpeta. |
 | **Proyectos = carpetas** | «Nuevo proyecto» o «Abrir carpeta». La app guarda lo suyo en una carpeta oculta `.buhostudio/` y el resto son archivos normales: se pueden abrir con el Explorador, Blender o git. Lista de recientes. |
-| **Plantilla estándar** | `Contexto/` (lore, historia, personajes, estilo visual, objetivos, mecánicas y referencias), `Assets/` (modelos 3D, mapas, sonidos, texturas, imágenes y animaciones), `Tareas/`, `Capturas/` y `Builds/`. Después, todo es personalizable. |
+| **Plantilla estándar** | `Contexto/` (`ia_context.md` para los agentes, lore, historia, personajes, estilo visual, objetivos, mecánicas y referencias), `Assets/` (modelos 3D, mapas, sonidos, texturas, imágenes y animaciones), `Tareas/`, `Capturas/` y `Builds/`. Después, todo es personalizable. |
 | **Notas** | Editor Markdown con vista previa (vista, edición o las dos a la vez), tablas, imágenes del proyecto y enlaces `[[Nombre]]` como en Obsidian. Guarda solo. |
 | **Galería de assets** | Miniaturas de imágenes y de modelos 3D: `.glb`, `.gltf`, `.fbx`, `.obj` y `.stl` los pinta la app con three.js; los `.blend`, [`buho-blender`](https://github.com/julianfdz/BuhoAI-Blender-CLI). Filtro por estado y vista con subcarpetas. Arrastra archivos desde el Explorador para copiarlos. |
 | **Visor 3D** | Gira, acerca y reproduce las animaciones de `.glb` y `.fbx` (Mixamo incluido). Si el archivo solo trae esqueleto, lo dibuja. |
@@ -88,6 +91,10 @@ buho-studio anadir "Assets/Modelos 3D" D:\descargas\silla.glb --autor Claude    
 buho-studio ficha "Assets/Modelos 3D/silla.glb" --nombre "Silla de oficina" --descripcion "Prop del laboratorio" --autor Claude
 buho-studio fichas Assets --faltan                                               # assets sin nombre o descripción
 buho-studio estado-de "Assets/Modelos 3D/silla.glb" revisar --autor Claude
+buho-studio id a-3f9c21b0                                                        # qué es una ID copiada en la app
+buho-studio tarea nueva "Modelar la silla" --asignada Claude --enlaces a-3f9c21b0 --pasos "Boceto; Modelo"
+buho-studio tarea mover t-1a2b3c4d revisar --autor Claude
+buho-studio ayuda tareas
 buho-studio comentarios --pendientes
 buho-studio responder k-1a2b3c4d "Hecho" --resolver --autor Claude
 buho-studio miniaturas "Assets/Modelos 3D"

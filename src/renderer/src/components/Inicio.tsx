@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import {
   Activity,
   BookOpen,
+  Bot,
   Box,
   Clapperboard,
   FileText,
@@ -9,6 +10,7 @@ import {
   FolderSearch,
   Hammer,
   Image as ImageIcon,
+  Inbox,
   KanbanSquare,
   ListTodo,
   Map as MapIcon,
@@ -25,6 +27,7 @@ import { ESTADOS, type Entrada, type Proyecto } from '@shared/types'
 import { contar, urlArchivo } from '@/lib/util'
 import { useMiniatura } from '@/lib/miniaturas'
 import { ICONO } from './Arbol'
+import { paraQue } from '@shared/estructura'
 
 /** Icono de una carpeta por su nombre (Gameplay, Animaciones, Sonidos…). */
 const POR_NOMBRE: [RegExp, LucideIcon][] = [
@@ -38,11 +41,12 @@ const POR_NOMBRE: [RegExp, LucideIcon][] = [
   [/contexto|lore|historia|biblia|docu/i, BookOpen],
   [/tarea|pendiente|hito/i, ListTodo],
   [/build|versi/i, Hammer],
+  [/sin procesar|bandeja|entrada|inbox/i, Inbox],
   [/asset/i, Package]
 ]
 export const iconoCarpeta = (nombre: string): LucideIcon => POR_NOMBRE.find(([r]) => r.test(nombre))?.[1] ?? Folder
 
-const ORDEN = ['contexto', 'assets', 'capturas', 'tareas', 'builds']
+const ORDEN = ['sin procesar', 'contexto', 'assets', 'capturas', 'tareas', 'builds']
 const plano = (xs: Entrada[]): Entrada[] => xs.flatMap((x) => (x.clase === 'carpeta' ? plano(x.hijos ?? []) : [x]))
 const VISUAL: Entrada['clase'][] = ['imagen', 'video', 'modelo']
 
@@ -60,35 +64,70 @@ function Muestra({ e }: { e: Entrada }): React.JSX.Element {
   return mini ? <img src={mini} alt="" className="contener" /> : <Box size={30} className="c-modelo" />
 }
 
-/** Tarjeta de una sección (carpeta): collage de lo que tiene, recuento y estados. */
-function TarjetaSeccion({ e, ir, titulo }: { e: Entrada; ir: (r: string) => void; titulo?: string }): React.JSX.Element {
+/**
+ * Lo que hay dentro de una carpeta, en pequeño: primero lo visual (imágenes, fotogramas de vídeo, modelos) y, si no
+ * hay, fichas con el icono y el nombre de los archivos (sonidos, mapas, animaciones, notas…). Vacía: icono genérico.
+ */
+export function Collage({ e, children }: { e: Entrada; children?: React.ReactNode }): React.JSX.Element {
   const todos = useMemo(() => (e.clase === 'carpeta' ? plano(e.hijos ?? []) : [e]), [e])
-  const muestras = todos.filter((x) => VISUAL.includes(x.clase)).slice(0, 4)
+  const visuales = todos.filter((x) => VISUAL.includes(x.clase))
+  const muestras = (visuales.length ? visuales : todos).slice(0, 4)
+  const I = e.clase === 'carpeta' ? iconoCarpeta(e.nombre) : ICONO[e.clase]
+  return (
+    <div className={`collage n${Math.min(muestras.length, 4)}`}>
+      {muestras.length ? (
+        muestras.map((m) => (
+          <div key={m.ruta} className={`celda ${VISUAL.includes(m.clase) ? '' : 'ficha-archivo'}`}>
+            {VISUAL.includes(m.clase) ? <Muestra e={m} /> : <FichaArchivo e={m} />}
+          </div>
+        ))
+      ) : (
+        <div className="celda vacia">
+          <I size={44} strokeWidth={1.3} />
+        </div>
+      )}
+      {children}
+    </div>
+  )
+}
+
+/** Un archivo no visual dentro del collage: su icono, su nombre y, si es sonido, botón para oírlo. */
+function FichaArchivo({ e }: { e: Entrada }): React.JSX.Element {
+  const I = ICONO[e.clase]
+  return (
+    <span className={`ficha-arch c-${e.clase}`}>
+      <I size={22} strokeWidth={1.5} />
+      <span>{e.titulo ?? e.nombre}</span>
+    </span>
+  )
+}
+
+/** Tarjeta de una sección (carpeta): collage de lo que tiene, recuento y estados. */
+function TarjetaSeccion({ e, ir, titulo, menu }: { e: Entrada; ir: (r: string) => void; titulo?: string; menu?: (e: Entrada, x: number, y: number) => void }): React.JSX.Element {
+  const todos = useMemo(() => (e.clase === 'carpeta' ? plano(e.hijos ?? []) : [e]), [e])
   const I = e.clase === 'carpeta' ? iconoCarpeta(e.nombre) : ICONO[e.clase]
   const n = e.clase === 'carpeta' ? contar(e) : 1
   const porEstado = ESTADOS.map((s) => ({ ...s, n: todos.filter((x) => x.estado === s.id).length })).filter((s) => s.n)
   const pendientes = todos.reduce((a, x) => a + (x.pendientes ?? 0), 0) + (e.clase === 'carpeta' ? e.pendientes ?? 0 : 0)
   const tipos = [...new Set(todos.map((x) => x.ext.replace('.', '').toUpperCase()).filter(Boolean))].slice(0, 4)
   return (
-    <button className="seccion-tarjeta" onClick={() => ir(e.ruta)} title={[e.titulo, e.ruta, e.descripcion].filter(Boolean).join('\n')}>
-      <div className={`collage n${Math.min(muestras.length, 4)}`}>
-        {muestras.length ? (
-          muestras.map((m) => (
-            <div key={m.ruta} className="celda">
-              <Muestra e={m} />
-            </div>
-          ))
-        ) : (
-          <div className="celda vacia">
-            <I size={44} strokeWidth={1.3} />
-          </div>
-        )}
+    <button
+      className="seccion-tarjeta"
+      onClick={() => ir(e.ruta)}
+      onContextMenu={(x) => {
+        if (!menu) return
+        x.preventDefault()
+        menu(e, x.clientX, x.clientY)
+      }}
+      title={[e.titulo, e.ruta, e.id, e.descripcion].filter(Boolean).join('\n')}
+    >
+      <Collage e={e}>
         {pendientes ? (
           <span className="sello-com" title="Comentarios sin resolver">
             {pendientes}
           </span>
         ) : null}
-      </div>
+      </Collage>
       <div className="seccion-pie">
         <div className="fila" style={{ gap: 8, flexWrap: 'nowrap' }}>
           <span className="seccion-icono">
@@ -114,7 +153,7 @@ function TarjetaSeccion({ e, ir, titulo }: { e: Entrada; ir: (r: string) => void
 }
 
 /** Tarjeta de una nota de Contexto: título, estado y el comienzo del texto. */
-function TarjetaNota({ e, ir }: { e: Entrada; ir: (r: string) => void }): React.JSX.Element {
+function TarjetaNota({ e, ir, menu }: { e: Entrada; ir: (r: string) => void; menu?: (e: Entrada, x: number, y: number) => void }): React.JSX.Element {
   const [extracto, setExtracto] = useState('')
   useEffect(() => {
     if (e.clase !== 'nota') return
@@ -136,7 +175,16 @@ function TarjetaNota({ e, ir }: { e: Entrada; ir: (r: string) => void }): React.
   }, [e.ruta, e.mtime, e.clase])
   const estado = ESTADOS.find((s) => s.id === e.estado)
   return (
-    <button className="nota-tarjeta" onClick={() => ir(e.ruta)}>
+    <button
+      className="nota-tarjeta"
+      onClick={() => ir(e.ruta)}
+      onContextMenu={(x) => {
+        if (!menu) return
+        x.preventDefault()
+        menu(e, x.clientX, x.clientY)
+      }}
+      title={`${e.ruta}\n${e.id}`}
+    >
       <div className="fila entre" style={{ flexWrap: 'nowrap' }}>
         <b className="fila" style={{ gap: 7, flexWrap: 'nowrap' }}>
           <FileText size={15} className="c-nota" /> {e.titulo ?? e.nombre.replace(/\.md$/i, '')}
@@ -160,7 +208,17 @@ function elegirPortada(todos: Entrada[]): Entrada | undefined {
 }
 
 /** Inicio del proyecto: cabecera, lo pendiente y una tarjeta por cada sección para ir directo a ella. */
-export function Inicio(p: { proyecto: Proyecto; arbol: Entrada[]; planos: Entrada[]; version: number; ir: (r: string) => void; irVista: (v: 'tablero' | 'actividad') => void }): React.JSX.Element {
+export function Inicio(p: {
+  proyecto: Proyecto
+  arbol: Entrada[]
+  planos: Entrada[]
+  version: number
+  ir: (r: string) => void
+  irVista: (v: 'tablero' | 'actividad' | 'tareas') => void
+  menu: (e: Entrada, x: number, y: number) => void
+  tareasAbiertas: number
+  crearIaContext: () => void
+}): React.JSX.Element {
   const archivos = p.planos.filter((x) => x.clase !== 'carpeta')
   const [comentarios, setComentarios] = useState(0)
   useEffect(() => {
@@ -177,6 +235,7 @@ export function Inicio(p: { proyecto: Proyecto; arbol: Entrada[]; planos: Entrad
       return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.nombre.localeCompare(b.nombre, 'es')
     })
   const sueltos = p.arbol.filter((x) => x.clase !== 'carpeta')
+  const sinProcesar = p.arbol.find((x) => x.clase === 'carpeta' && x.nombre.toLowerCase() === 'sin procesar')
   const leeme = sueltos.find((x) => /^l[eé]eme|readme/i.test(x.nombre))
 
   return (
@@ -244,6 +303,16 @@ export function Inicio(p: { proyecto: Proyecto; arbol: Entrada[]; planos: Entrad
           <b>{estados.find((s) => s.id === 'aprobado')!.n}</b>
           <span>aprobados</span>
         </button>
+        {sinProcesar && contar(sinProcesar) > 0 && (
+          <button className="pendiente bandeja" onClick={() => p.ir(sinProcesar.ruta)} title="Bandeja de entrada: se procesa cuando se pide">
+            <b>{contar(sinProcesar)}</b>
+            <span>sin procesar</span>
+          </button>
+        )}
+        <button className="pendiente tareas" onClick={() => p.irVista('tareas')}>
+          <b>{p.tareasAbiertas}</b>
+          <span>tareas abiertas</span>
+        </button>
         <button className="pendiente act" onClick={() => p.irVista('actividad')}>
           <Activity size={22} />
           <span>Actividad</span>
@@ -267,21 +336,29 @@ export function Inicio(p: { proyecto: Proyecto; arbol: Entrada[]; planos: Entrad
               </button>
               <span className="muted pequeno">{contar(c)} archivos</span>
             </h2>
-            {c.descripcion && <p className="muted desc-seccion">{c.descripcion}</p>}
+            {(c.descripcion || paraQue(c.ruta)) && <p className="muted desc-seccion">{c.descripcion || paraQue(c.ruta)}</p>}
+            {c.nombre.toLowerCase() === 'contexto' && !hijos.some((h) => h.nombre.toLowerCase() === 'ia_context.md') && (
+              <p className="aviso fila" style={{ marginBottom: 12 }}>
+                <Bot size={15} /> Falta <b>ia_context.md</b>: la nota que leen primero los agentes (cómo trabajar en este juego).
+                <button className="btn chico der" onClick={p.crearIaContext}>
+                  Crearla
+                </button>
+              </p>
+            )}
             {hijos.length === 0 && <p className="muted pequeno">Vacía. Arrastra archivos a la carpeta o pídeselo a un agente.</p>}
             {notas.length > 0 && (
               <div className="rejilla-notas">
                 {notas.map((n) => (
-                  <TarjetaNota key={n.ruta} e={n} ir={p.ir} />
+                  <TarjetaNota key={n.ruta} e={n} ir={p.ir} menu={p.menu} />
                 ))}
               </div>
             )}
             {(sub.length > 0 || otros.length > 0) && (
               <div className="rejilla-secciones">
                 {sub.map((s) => (
-                  <TarjetaSeccion key={s.ruta} e={s} ir={p.ir} />
+                  <TarjetaSeccion key={s.ruta} e={s} ir={p.ir} menu={p.menu} />
                 ))}
-                {otros.length > 0 && <TarjetaSeccion e={{ ...c, hijos: otros }} ir={p.ir} titulo={sub.length ? `Sueltos en ${c.nombre}` : c.titulo ?? c.nombre} />}
+                {otros.length > 0 && <TarjetaSeccion e={{ ...c, hijos: otros }} ir={p.ir} menu={p.menu} titulo={sub.length ? `Sueltos en ${c.nombre}` : c.titulo ?? c.nombre} />}
               </div>
             )}
           </section>
@@ -293,7 +370,7 @@ export function Inicio(p: { proyecto: Proyecto; arbol: Entrada[]; planos: Entrad
           <h2 className="h-seccion">Archivos sueltos</h2>
           <div className="rejilla-notas">
             {sueltos.map((n) => (
-              <TarjetaNota key={n.ruta} e={n} ir={p.ir} />
+              <TarjetaNota key={n.ruta} e={n} ir={p.ir} menu={p.menu} />
             ))}
           </div>
         </section>

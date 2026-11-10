@@ -10,6 +10,7 @@ import { PLANTILLA } from './plantilla'
  *
  *   .buhostudio/proyecto.json     nombre, id y enlaces (p. ej. la carpeta del proyecto de Unity)
  *   .buhostudio/estados.json      estado de cada archivo o carpeta (idea → en curso → revisar → aprobado)
+ *   .buhostudio/ids.json          ID estable de cada archivo y carpeta (a-…, c-…, t-…): sigue al archivo al moverlo
  *   .buhostudio/fichas.json       nombre y descripción de cada asset (el nombre del archivo no cambia)
  *   .buhostudio/comentarios.json  comentarios por archivo, con respuestas (los agentes los leen y contestan)
  *   .buhostudio/historial.jsonl   historial firmado: quién (persona o agente), por dónde (app, cli) y qué
@@ -42,14 +43,122 @@ const exigir = (): void => {
   if (!proyecto) throw new Error('No hay ningún proyecto abierto. Ábrelo con «buho-studio abrir <carpeta>».')
 }
 
-/** Normaliza una ruta relativa («Assets\\Sonidos/», «/Contexto») a la forma «Assets/Sonidos». */
+/** Normaliza una ruta relativa («Assets\\Sonidos/», «/Contexto») a la forma «Assets/Sonidos». Acepta también una ID. */
 export function norm(r: string): string {
-  return String(r ?? '')
+  const t = String(r ?? '').trim()
+  if (ES_ID.test(t)) return rutaDeId(t)
+  return t
     .replace(/\\/g, '/')
     .replace(/^\.?\/+/, '')
     .replace(/\/+$/, '')
     .replace(/^\.$/, '')
 }
+
+// ------------------------------------------------------------------ IDs
+/**
+ * Cada archivo y carpeta tiene una ID corta y estable: «c-» carpetas, «a-» archivos, «t-» tareas, más 8 hex.
+ * Sirve para hablar con propiedad con la IA («cambia el asset a-3f9c21b0») y no depende del nombre: al mover o
+ * renombrar desde la app la ID va con el archivo, y si se mueve desde fuera (Explorador, Drive) se reconoce por
+ * nombre y tamaño. Las IDs de lo que desaparece se guardan 30 días por si vuelve (p. ej. mientras Drive sincroniza).
+ */
+export const ES_ID = /^[act]-[0-9a-f]{8}$/i
+type RegistroId = { id: string; tam?: number; perdido?: string }
+type Ids = Record<string, RegistroId>
+const leerIds = (): Ids => leerJson<Ids>(meta('ids.json'), {})
+const guardarIds = (x: Ids): void => guardarJson(meta('ids.json'), x)
+const nuevaId = (prefijo: 'a' | 'c' | 't', usadas: Set<string>): string => {
+  for (;;) {
+    const id = `${prefijo}-${randomBytes(4).toString('hex')}`
+    if (!usadas.has(id)) return id
+  }
+}
+
+/** Ruta de una ID del proyecto abierto. */
+export function rutaDeId(id: string): string {
+  exigir()
+  const k = id.toLowerCase()
+  for (const [ruta, r] of Object.entries(leerIds())) if (r.id === k && !r.perdido) return ruta
+  throw new Error(`No hay nada con la ID ${id} en este proyecto`)
+}
+
+/** ID de una ruta (o null si aún no tiene: se le da al leer el árbol). */
+export function idDe(r: string): string | null {
+  if (!proyecto) return null
+  const x = leerIds()[norm(r)]
+  return x && !x.perdido ? x.id : null
+}
+
+/** Busca una ID en otros proyectos (los recientes), por si el agente tiene abierto otro. */
+export function buscarIdEn(raices: string[], id: string): { raiz: string; ruta: string } | null {
+  const k = id.toLowerCase()
+  for (const d of raices) {
+    const ids = leerJson<Ids>(join(d, META, 'ids.json'), {})
+    for (const [ruta, r] of Object.entries(ids)) if (r.id === k && !r.perdido) return { raiz: d, ruta }
+  }
+  return null
+}
+
+/** Da ID a lo que no la tiene y reconoce lo que se ha movido desde fuera. Devuelve el mapa ruta → id. */
+function asegurarIds(todo: { ruta: string; nombre: string; carpeta: boolean; tam: number }[]): Record<string, string> {
+  const ids = leerIds()
+  let cambio = false
+  const ahora = new Set(todo.map((x) => x.ruta))
+  // lo que ya no está: perdido (se guarda 30 días)
+  const hoy = new Date()
+  for (const [ruta, r] of Object.entries(ids)) {
+    if (ahora.has(ruta)) {
+      if (r.perdido) {
+        delete r.perdido
+        cambio = true
+      }
+    } else if (!r.perdido) {
+      r.perdido = hoy.toISOString()
+      cambio = true
+    } else if (hoy.getTime() - new Date(r.perdido).getTime() > 30 * 864e5) {
+      delete ids[ruta]
+      cambio = true
+    }
+  }
+  const usadas = new Set(Object.values(ids).map((r) => r.id))
+  const perdidos = (): [string, RegistroId][] => Object.entries(ids).filter(([, r]) => r.perdido)
+  const base = (r: string): string => r.slice(r.lastIndexOf('/') + 1)
+  const movidos: [string, string][] = []
+  for (const x of todo) {
+    const r = ids[x.ruta]
+    if (r) {
+      if (!x.carpeta && r.tam !== x.tam) {
+        r.tam = x.tam
+        cambio = true
+      }
+      continue
+    }
+    // ¿se ha movido desde fuera? mismo nombre (y mismo tamaño si es archivo), y que solo haya uno así
+    const candidatos = perdidos().filter(([ruta, p]) => base(ruta) === x.nombre && (x.carpeta ? p.id.startsWith('c-') : p.tam === x.tam))
+    if (candidatos.length === 1) {
+      const [vieja, p] = candidatos[0]
+      delete ids[vieja]
+      ids[x.ruta] = { id: p.id, ...(x.carpeta ? {} : { tam: x.tam }) }
+      movidos.push([vieja, x.ruta])
+    } else {
+      const id = nuevaId(x.carpeta ? 'c' : 'a', usadas)
+      usadas.add(id)
+      ids[x.ruta] = { id, ...(x.carpeta ? {} : { tam: x.tam }) }
+    }
+    cambio = true
+  }
+  if (cambio) guardarIds(ids)
+  // Estados, fichas y comentarios siguen al archivo movido desde fuera
+  for (const [de, a] of movidos) if (!movidos.some(([d2]) => d2 !== de && de.startsWith(d2 + '/'))) reubicarDatos(de, a)
+  return Object.fromEntries(Object.entries(ids).filter(([, r]) => !r.perdido).map(([ruta, r]) => [ruta, r.id]))
+}
+
+/** Pone una ID concreta a una ruta (las tareas llevan la suya, «t-…»). */
+export function fijarId(r: string, id: string): void {
+  const ids = leerIds()
+  ids[norm(r)] = { id: id.toLowerCase() }
+  guardarIds(ids)
+}
+export const idNueva = (prefijo: 'a' | 'c' | 't'): string => nuevaId(prefijo, new Set(Object.values(leerIds()).map((r) => r.id)))
 
 /** Ruta absoluta de algo del proyecto. Acepta relativa o absoluta, pero siempre dentro del proyecto. */
 export function abs(r: string): string {
@@ -145,6 +254,15 @@ const fichas = (): Fichas => leerJson<Fichas>(meta('fichas.json'), {})
 
 /** Al mover o renombrar, el estado y los comentarios siguen al archivo (y a todo lo que cuelga de una carpeta). */
 function reubicar(de: string, a: string): void {
+  const cambia = (r: string): string | null => (r === de ? a : r.startsWith(de + '/') ? a + r.slice(de.length) : null)
+  const ids = leerIds()
+  const ids2: Ids = {}
+  for (const [k, v] of Object.entries(ids)) ids2[cambia(k) ?? k] = v
+  guardarIds(ids2)
+  reubicarDatos(de, a)
+}
+
+function reubicarDatos(de: string, a: string): void {
   const cambia = (r: string): string | null => (r === de ? a : r.startsWith(de + '/') ? a + r.slice(de.length) : null)
   const e = estados()
   const e2: Estados = {}
@@ -246,7 +364,8 @@ export function resolver(id: string, resuelto = true): Comentario {
 export function registrar(ev: Omit<Evento, 'fecha'>): void {
   if (!proyecto) return
   try {
-    appendFileSync(meta('historial.jsonl'), JSON.stringify({ fecha: new Date().toISOString(), ...ev }) + '\n')
+    const id = ev.ruta ? leerIds()[ev.ruta]?.id : undefined
+    appendFileSync(meta('historial.jsonl'), JSON.stringify({ fecha: new Date().toISOString(), ...ev, ...(id ? { id } : {}) }) + '\n')
   } catch {
     /* sin permisos: no se para por el historial */
   }
@@ -265,7 +384,8 @@ export function historial(r?: string, max = 200): Evento[] {
   }
   if (r) {
     const k = norm(r)
-    lineas = lineas.filter((e) => e.ruta === k || e.ruta.startsWith(k + '/') || e.detalle?.includes(k))
+    const id = idDe(k)
+    lineas = lineas.filter((e) => e.ruta === k || e.ruta.startsWith(k + '/') || e.detalle?.includes(k) || (id && e.id === id))
   }
   return lineas.slice(-max).reverse()
 }
@@ -274,6 +394,29 @@ export function historial(r?: string, max = 200): Evento[] {
 
 export function arbol(): Entrada[] {
   exigir()
+  // Primero un repaso ligero para dar IDs (y reconocer lo movido desde fuera); luego el árbol con todo
+  const todo: { ruta: string; nombre: string; carpeta: boolean; tam: number }[] = []
+  const repasar = (dir: string, prof: number): void => {
+    let ns: string[] = []
+    try {
+      ns = readdirSync(dir)
+    } catch {
+      return
+    }
+    for (const n of ns) {
+      if (IGNORAR.has(n)) continue
+      const p = join(dir, n)
+      try {
+        const st = statSync(p)
+        todo.push({ ruta: rel(p), nombre: n, carpeta: st.isDirectory(), tam: st.isDirectory() ? 0 : st.size })
+        if (st.isDirectory() && prof < 12) repasar(p, prof + 1)
+      } catch {
+        /* nada */
+      }
+    }
+  }
+  repasar(raiz, 0)
+  const ids = asegurarIds(todo)
   const e = estados()
   const fs = fichas()
   const pend: Record<string, number> = {}
@@ -296,7 +439,7 @@ export function arbol(): Entrada[] {
         continue
       }
       const r = rel(p)
-      const base = { ruta: r, nombre: n, mtime: Math.round(st.mtimeMs), ...(e[r] ? { estado: e[r].estado } : {}), ...(fs[r]?.titulo ? { titulo: fs[r].titulo } : {}), ...(fs[r]?.descripcion ? { descripcion: fs[r].descripcion } : {}), ...(pend[r] ? { pendientes: pend[r] } : {}) }
+      const base = { ruta: r, id: ids[r] ?? '', nombre: n, mtime: Math.round(st.mtimeMs), ...(e[r] ? { estado: e[r].estado } : {}), ...(fs[r]?.titulo ? { titulo: fs[r].titulo } : {}), ...(fs[r]?.descripcion ? { descripcion: fs[r].descripcion } : {}), ...(pend[r] ? { pendientes: pend[r] } : {}) }
       if (st.isDirectory()) out.push({ ...base, clase: 'carpeta', ext: '', tam: 0, hijos: prof < 12 ? leerDir(p, prof + 1) : [] })
       else out.push({ ...base, clase: claseDe(n), ext: extname(n).toLowerCase(), tam: st.size })
     }
@@ -438,6 +581,9 @@ export async function borrar(r: string, papelera: (p: string) => Promise<void>):
   const f = fichas()
   for (const x of Object.keys(f)) if (x === k || x.startsWith(k + '/')) delete f[x]
   guardarJson(meta('fichas.json'), f)
+  const ids = leerIds()
+  for (const x of Object.keys(ids)) if (x === k || x.startsWith(k + '/')) delete ids[x]
+  guardarIds(ids)
   return { ok: true, ruta: k }
 }
 
@@ -451,6 +597,7 @@ export function buscar(q: string, max = 40): { ruta: string; nombre: string; cla
   for (const n of plano()) {
     let peso = 0
     let fragmento: string | undefined
+    if (n.id === t) peso += 100
     if (n.nombre.toLowerCase().includes(t)) peso += 10
     else if (n.ruta.toLowerCase().includes(t)) peso += 4
     if (n.titulo?.toLowerCase().includes(t)) peso += 10

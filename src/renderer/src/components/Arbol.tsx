@@ -69,7 +69,7 @@ export function Arbol(p: Props): React.JSX.Element {
                 e.preventDefault()
                 p.accion({ tipo: 'menu', e: n, x: e.clientX, y: e.clientY })
               }}
-              title={[n.titulo, n.ruta, n.descripcion].filter(Boolean).join('\n')}
+              title={[n.titulo, n.ruta, n.id, n.descripcion].filter(Boolean).join('\n')}
             >
               {carpeta ? (
                 <button

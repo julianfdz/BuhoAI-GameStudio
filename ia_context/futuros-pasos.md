@@ -15,7 +15,9 @@ Lo aplazado, con el motivo y lo que hace falta para retomarlo.
 
 ## Ideas para que el estudio sea el núcleo del trabajo de agentes con videojuegos (10/11/2026)
 
-Sin hacer todavía; para hablarlo con Julián.
+Estado el 10/11/2026: Julián prefiere de momento trabajar con **IDs** (hecho) antes que encargar a agentes desde la app
+(necesita sesiones en la nube por detrás). El brief (2) queda cubierto con `Contexto/ia_context.md` + notas atómicas, y las
+tareas (3) ya existen con su Kanban; falta el bloqueo «la coge X» para varios agentes a la vez.
 
 1. **Encargar a un agente desde la app.** Un botón «Pedir a un agente» en un archivo, una carpeta o un comentario lanza Claude Code (o Codex) con el contexto del proyecto y las skills del juego (`buho-blender`, `buho-unity`, `buho-comfy`). El encargo sale como tarjeta con su log en directo y acaba en «revisar».
 2. **Brief del juego para agentes.** `buho-studio contexto --brief` junta estilo visual, lore, mecánicas, convenciones de nombres y decisiones en un solo texto corto. Así todos los agentes trabajan con la misma biblia y no se contradicen.
