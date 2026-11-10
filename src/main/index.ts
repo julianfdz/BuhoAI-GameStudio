@@ -1,5 +1,6 @@
 import { app, BrowserWindow, dialog, ipcMain, Menu, net, protocol, shell } from 'electron'
-import { existsSync, mkdirSync, watch, type FSWatcher } from 'node:fs'
+import { createReadStream, existsSync, mkdirSync, statSync, watch, type FSWatcher } from 'node:fs'
+import { Readable } from 'node:stream'
 import { dirname, extname, join } from 'node:path'
 import { hostname, tmpdir } from 'node:os'
 import { pathToFileURL } from 'node:url'
@@ -147,6 +148,43 @@ async function miniatura(ruta: string, opt: { forzar?: boolean; blender?: boolea
   return null
 }
 
+// ---------------------------------------------------------------- archivos del proyecto (estudio://)
+const MIME: Record<string, string> = {
+  '.mp4': 'video/mp4', '.webm': 'video/webm', '.mov': 'video/quicktime', '.mkv': 'video/x-matroska',
+  '.mp3': 'audio/mpeg', '.ogg': 'audio/ogg', '.wav': 'audio/wav', '.flac': 'audio/flac', '.m4a': 'audio/mp4', '.aac': 'audio/aac',
+  '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.gif': 'image/gif', '.webp': 'image/webp', '.svg': 'image/svg+xml', '.avif': 'image/avif', '.bmp': 'image/bmp',
+  '.glb': 'model/gltf-binary', '.gltf': 'model/gltf+json', '.json': 'application/json', '.md': 'text/markdown; charset=utf-8', '.txt': 'text/plain; charset=utf-8'
+}
+
+/**
+ * Sirve un archivo con soporte de rangos (206). Sin esto Chromium no puede saltar en los vídeos y el audio:
+ * la barra no avanza ni retrocede (net.fetch de file:// siempre devuelve el archivo entero).
+ */
+function servirArchivo(f: string, rango: string | null): Response {
+  const total = statSync(f).size
+  const h = new Headers({
+    'content-type': MIME[extname(f).toLowerCase()] ?? 'application/octet-stream',
+    'accept-ranges': 'bytes',
+    // three.js carga los modelos con fetch: hace falta permitir el origen
+    'access-control-allow-origin': '*'
+  })
+  const m = rango ? /bytes=(\d*)-(\d*)/.exec(rango) : null
+  if (m && (m[1] || m[2])) {
+    let ini = m[1] ? Number(m[1]) : Math.max(0, total - Number(m[2]))
+    let fin = m[1] && m[2] ? Number(m[2]) : total - 1
+    fin = Math.min(fin, total - 1)
+    if (ini > fin || ini >= total) {
+      h.set('content-range', `bytes */${total}`)
+      return new Response(null, { status: 416, headers: h })
+    }
+    h.set('content-range', `bytes ${ini}-${fin}/${total}`)
+    h.set('content-length', String(fin - ini + 1))
+    return new Response(Readable.toWeb(createReadStream(f, { start: ini, end: fin })) as ReadableStream, { status: 206, headers: h })
+  }
+  h.set('content-length', String(total))
+  return new Response(Readable.toWeb(createReadStream(f)) as ReadableStream, { status: 200, headers: h })
+}
+
 // ---------------------------------------------------------------- ventana
 function createWindow(): void {
   win = new BrowserWindow({
@@ -244,6 +282,14 @@ function registerIpc(): void {
   ipcMain.handle('ponerFicha', (_e, r: string, c: { titulo?: string; descripcion?: string }) => {
     est.ponerFicha(r, c, A().autor)
     return hecho(A(), 'edita ficha', [r], est.entrada(r), resumenFicha(c))
+  })
+  // Los botones de la ventana (minimizar, cerrar…) siguen el color de la barra del tema
+  ipcMain.handle('colorVentana', (_e, fondo: string, simbolos: string) => {
+    try {
+      win?.setTitleBarOverlay({ color: fondo, symbolColor: simbolos, height: 40 })
+    } catch {
+      /* sin superposición en este sistema */
+    }
   })
   ipcMain.handle('comentarios', (_e, r?: string) => est.comentarios(r))
   ipcMain.handle('comentar', (_e, r: string, t: string, resp?: string) => {
@@ -469,11 +515,7 @@ if (!process.env.BUHO_E2E && !app.requestSingleInstanceLock()) {
       try {
         const f = u.hostname === 'mini' ? est.rutaMiniatura(ruta) : est.abs(ruta)
         if (!existsSync(f)) return new Response('No existe', { status: 404 })
-        const r = await net.fetch(pathToFileURL(f).toString(), { headers: req.headers })
-        // three.js carga los modelos con fetch desde file://: hace falta permitir el origen
-        const h = new Headers(r.headers)
-        h.set('access-control-allow-origin', '*')
-        return new Response(r.body, { status: r.status, statusText: r.statusText, headers: h })
+        return servirArchivo(f, req.headers.get('range'))
       } catch {
         return new Response('No existe', { status: 404 })
       }

@@ -7,6 +7,7 @@ import { EN_APP } from '@/lib/tres'
 import { ICONO } from './Arbol'
 import { Markdown } from './Markdown'
 import { Visor3D } from './Visor3D'
+import { Navegacion, VideoVista } from './Medios'
 
 export function Migas({ ruta, nombre, ir }: { ruta: string; nombre: string; ir: (r: string) => void }): React.JSX.Element {
   const partes = ruta ? ruta.split('/') : []
@@ -68,6 +69,13 @@ function Tarjeta({ e, abrir, sel }: { e: Entrada; abrir: (r: string) => void; se
         <span>{EN_APP.includes(extDe(e.ruta)) || extDe(e.ruta) === '.blend' ? 'Haciendo miniatura…' : extDe(e.ruta)}</span>
       </div>
     )
+  else if (e.clase === 'video')
+    fondo = (
+      <span className="muestra-video">
+        <video src={`${urlArchivo(e.ruta, e.mtime)}#t=1.5`} muted preload="metadata" />
+        <Play size={20} />
+      </span>
+    )
   else
     fondo = (
       <div className={`icono-grande c-${e.clase}`}>
@@ -84,7 +92,7 @@ function Tarjeta({ e, abrir, sel }: { e: Entrada; abrir: (r: string) => void; se
       onDragStart={(ev) => ev.dataTransfer.setData('text/x-buho-ruta', e.ruta)}
       title={[e.titulo, e.ruta, e.descripcion].filter(Boolean).join('\n')}
     >
-      <div className={`mini ${e.clase === 'modelo' || e.clase === 'imagen' ? 'oscura' : ''}`}>
+      <div className={`mini ${e.clase === 'modelo' || e.clase === 'imagen' || e.clase === 'video' ? 'oscura' : ''}`}>
         {fondo}
         {e.estado && <span className={`sello e-${e.estado}`}>{ESTADOS.find((x) => x.id === e.estado)?.nombre}</span>}
         {e.pendientes ? <span className="sello-com">{e.pendientes}</span> : null}
@@ -313,7 +321,7 @@ function ModeloVista({ e }: { e: Entrada }): React.JSX.Element {
 }
 
 /** Vista de un archivo según su tipo. */
-export function ArchivoVista(p: { e: Entrada; idx: Map<string, Entrada>; abrir: (r: string) => void; nombreProyecto: string }): React.JSX.Element {
+export function ArchivoVista(p: { e: Entrada; idx: Map<string, Entrada>; hermanos: Entrada[]; abrir: (r: string) => void; nombreProyecto: string }): React.JSX.Element {
   const { e } = p
   const I = ICONO[e.clase]
   let cuerpo: React.ReactNode
@@ -327,7 +335,7 @@ export function ArchivoVista(p: { e: Entrada; idx: Map<string, Entrada>; abrir: 
         <audio controls src={urlArchivo(e.ruta, e.mtime)} />
       </div>
     )
-  else if (e.clase === 'video') cuerpo = <video className="video-grande" controls src={urlArchivo(e.ruta, e.mtime)} />
+  else if (e.clase === 'video') cuerpo = <VideoVista e={e} hermanos={p.hermanos} abrir={p.abrir} />
   else if (e.clase === 'texto') cuerpo = <TextoVista e={e} />
   else cuerpo = <p className="muted">Sin vista previa para este tipo de archivo. Ábrelo con su programa desde el panel de la derecha.</p>
   return (
@@ -340,6 +348,7 @@ export function ArchivoVista(p: { e: Entrada; idx: Map<string, Entrada>; abrir: 
             {e.titulo && <span className="archivo-real mono">{e.nombre}</span>}
           </h1>
           {e.descripcion && <p className="desc-pagina">{e.descripcion}</p>}
+          <Navegacion e={e} hermanos={p.hermanos} abrir={p.abrir} />
         </>
       )}
       {cuerpo}

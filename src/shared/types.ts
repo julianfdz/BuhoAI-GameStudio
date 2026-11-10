@@ -90,6 +90,8 @@ export interface Ajustes {
   autor: string
   recientes: Reciente[]
   ultimo?: string
+  /** Estilo de la app (lib/temas.ts) */
+  tema?: string
 }
 
 export interface Conector {
@@ -149,6 +151,7 @@ export interface BuhoStudioApi {
   abrirEnBlender: (ruta: string) => Promise<{ ok: boolean; error?: string }>
   revelar: (ruta: string) => Promise<void>
   abrirFuera: (ruta: string) => Promise<void>
+  colorVentana: (fondo: string, simbolos: string) => Promise<void>
   rutaDeArchivo: (f: File) => string
   onCambio: (cb: (c: Cambio) => void) => () => void
 }

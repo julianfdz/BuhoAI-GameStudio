@@ -24,6 +24,7 @@ const api: BuhoStudioApi = {
   borrar: i('borrar') as BuhoStudioApi['borrar'],
   ponerEstado: i('ponerEstado') as BuhoStudioApi['ponerEstado'],
   ponerFicha: i('ponerFicha') as BuhoStudioApi['ponerFicha'],
+  colorVentana: i('colorVentana') as BuhoStudioApi['colorVentana'],
   comentarios: i('comentarios') as BuhoStudioApi['comentarios'],
   comentar: i('comentar') as BuhoStudioApi['comentar'],
   resolver: i('resolver') as BuhoStudioApi['resolver'],

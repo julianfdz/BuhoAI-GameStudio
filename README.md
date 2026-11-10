@@ -14,6 +14,9 @@ No depende de ningún motor: Unity, Godot o Unreal se enlazan como conectores op
 
 | | |
 |---|---|
+| **Inicio** | Portada del proyecto con sus cifras, lo pendiente (por revisar, en curso, comentarios) y una tarjeta por sección (Contexto, Assets, Capturas, Gameplay…) con miniaturas de lo que hay dentro. |
+| **Estilos** | Seis preajustes de color desde el botón «Estilo» de la barra: Búho, Búho noche, Claude, Búho AI tinta, Arcade y Blanco y negro. |
+| **Gameplays** | Reproductor con saltos de ±10 s (J/L), velocidad de 0,5× a 4×, anterior/siguiente (AvPág/RePág o Alt+flechas), «al acabar, el siguiente» y tira con los demás vídeos de la carpeta. |
 | **Proyectos = carpetas** | «Nuevo proyecto» o «Abrir carpeta». La app guarda lo suyo en una carpeta oculta `.buhostudio/` y el resto son archivos normales: se pueden abrir con el Explorador, Blender o git. Lista de recientes. |
 | **Plantilla estándar** | `Contexto/` (lore, historia, personajes, estilo visual, objetivos, mecánicas y referencias), `Assets/` (modelos 3D, mapas, sonidos, texturas, imágenes y animaciones), `Tareas/`, `Capturas/` y `Builds/`. Después, todo es personalizable. |
 | **Notas** | Editor Markdown con vista previa (vista, edición o las dos a la vez), tablas, imágenes del proyecto y enlaces `[[Nombre]]` como en Obsidian. Guarda solo. |
@@ -39,6 +42,17 @@ No depende de ningún motor: Unity, Godot o Unreal se enlazan como conectores op
 | ![Comentarios](docs/img/comentarios.png) | ![Conectores](docs/img/conectores.png) |
 
 Las capturas son del proyecto de prueba **Búho Zombies**, un shooter cooperativo hecho con IA (Unity 6.3).
+
+## Compartir un proyecto con el equipo
+
+El proyecto es una carpeta normal, así que se comparte como cualquier carpeta:
+
+1. Pon la carpeta del proyecto en **Google Drive** (u OneDrive, Dropbox o un repositorio git) y compártela con tu compañero con permiso de edición.
+2. Tu compañero instala Búho Game Studio y, con Drive para escritorio, añade la carpeta compartida a su unidad («Añadir acceso directo a Mi unidad»).
+3. En la app: **Abrir carpeta** y elige esa carpeta. Ya está: ve los mismos assets, notas, fichas, estados, comentarios e historial, porque todo eso vive en la carpeta (`.buhostudio/`).
+4. Cada uno firma con su nombre (Conectores → tu nombre), así el historial dice quién hizo qué.
+
+A tener en cuenta: las miniaturas se rehacen en cada equipo; el enlace a Unity es una ruta de tu PC, así que cada uno enlaza su copia; y si dos personas cambian a la vez estados o comentarios, Drive puede crear una copia en conflicto de un `.json` (está en los próximos pasos evitarlo con un bloqueo).
 
 ## Conectores (opcionales)
 

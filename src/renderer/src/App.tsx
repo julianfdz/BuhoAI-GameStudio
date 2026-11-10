@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Activity, Bot, FilePlus2, FolderOpen, FolderPlus, FolderTree, KanbanSquare, LogOut, Plug, Search, Upload, X } from 'lucide-react'
+import { Activity, Bot, Check, FilePlus2, FolderOpen, FolderPlus, FolderTree, House, KanbanSquare, LogOut, Palette, Plug, Search, Upload, X } from 'lucide-react'
 import type { Ajustes, Entrada, Proyecto } from '@shared/types'
 import { guardarLocal, indexar, leerLocal, nombreDe, padreDe } from '@/lib/util'
 import { pintarYGuardar, refrescarMiniatura } from '@/lib/miniaturas'
@@ -7,9 +7,11 @@ import { Arbol, ICONO, type AccionArbol } from '@/components/Arbol'
 import { ArchivoVista, Galeria } from '@/components/Vistas'
 import { Panel } from '@/components/Panel'
 import { Actividad, Conectores, Portada, Tablero } from '@/components/Paneles'
+import { Inicio } from '@/components/Inicio'
+import { TEMAS, aplicarTema } from '@/lib/temas'
 import logo from './logobuho.png'
 
-type Vista = 'archivos' | 'tablero' | 'actividad' | 'conectores'
+type Vista = 'inicio' | 'archivos' | 'tablero' | 'actividad' | 'conectores'
 type Pregunta = { titulo: string; valor: string; ok: (v: string) => void }
 type Menu = { e: Entrada | null; x: number; y: number }
 const limpiarError = (e: unknown): string => String((e as Error)?.message ?? e).replace(/^Error invoking remote method '[^']+': (Error: )?/, '')
@@ -20,7 +22,8 @@ export default function App(): React.JSX.Element {
   const [ajustes, setAjustes] = useState<Ajustes | null>(null)
   const [arbol, setArbol] = useState<Entrada[]>([])
   const [sel, setSel] = useState<string | null>(null)
-  const [vista, setVista] = useState<Vista>('archivos')
+  const [vista, setVista] = useState<Vista>('inicio')
+  const [verTemas, setVerTemas] = useState(false)
   const [abiertos, setAbiertos] = useState<Set<string>>(new Set())
   const [recientes, setRecientes] = useState<Set<string>>(new Set())
   const [version, setVersion] = useState(0)
@@ -44,7 +47,9 @@ export default function App(): React.JSX.Element {
     const e = await window.buho.estado()
     setProyecto(e.proyecto)
     setApi(e.api)
-    setAjustes(await window.buho.ajustes())
+    const a = await window.buho.ajustes()
+    setAjustes(a)
+    aplicarTema(a.tema)
     if (e.proyecto) {
       try {
         setAbiertos(new Set(JSON.parse(leerLocal(clave(e.proyecto)) ?? '["Contexto","Assets"]')))
@@ -64,7 +69,11 @@ export default function App(): React.JSX.Element {
   useEffect(
     () =>
       window.buho.onCambio(async (c) => {
-        if (c.tipo === 'proyecto') return void cargarEstado()
+        if (c.tipo === 'proyecto') {
+          setVista('inicio')
+          setSel(null)
+          return void cargarEstado()
+        }
         if (c.tipo === 'pedir-miniatura' && c.ruta) {
           pintarYGuardar(c.ruta, undefined, c.peticion).catch((e) => console.error('miniatura', c.ruta, e))
           return
@@ -114,6 +123,11 @@ export default function App(): React.JSX.Element {
     return () => clearTimeout(t)
   }, [q, proyecto, version])
 
+  // Al cambiar de archivo o de vista, el centro vuelve arriba
+  useEffect(() => {
+    document.querySelector('.principal')?.scrollTo(0, 0)
+  }, [sel, vista])
+
   const idx = useMemo(() => indexar(arbol), [arbol])
   const planos = useMemo(() => [...idx.values()], [idx])
   const elegido = sel ? idx.get(sel) ?? null : null
@@ -126,7 +140,7 @@ export default function App(): React.JSX.Element {
       return n
     })
   const ir = (r: string): void => {
-    setVista('archivos')
+    setVista(r ? 'archivos' : 'inicio')
     setQ('')
     setSel(r || null)
     const ps = r.split('/')
@@ -190,6 +204,7 @@ export default function App(): React.JSX.Element {
         <nav className="pestanas">
           {(
             [
+              ['inicio', House, 'Inicio'],
               ['archivos', FolderTree, 'Archivos'],
               ['tablero', KanbanSquare, 'Tablero'],
               ['actividad', Activity, 'Actividad'],
@@ -203,6 +218,40 @@ export default function App(): React.JSX.Element {
         </nav>
       )}
       <div className="acciones">
+        <div className="temas-caja">
+          <button className={`bb ${verTemas ? 'on' : ''}`} onClick={() => setVerTemas((x) => !x)} title="Estilo de la app">
+            <Palette size={15} /> Estilo
+          </button>
+          {verTemas && (
+            <>
+              <div className="velo-menu" onClick={() => setVerTemas(false)} />
+              <div className="temas">
+                <div className="etiqueta">Estilo de la app</div>
+                {TEMAS.map((t) => (
+                  <button
+                    key={t.id}
+                    className={`tema ${(ajustes?.tema ?? 'buho') === t.id ? 'on' : ''}`}
+                    onClick={() => {
+                      aplicarTema(t.id)
+                      void window.buho.guardarAjustes({ tema: t.id }).then(setAjustes)
+                    }}
+                  >
+                    <span className="muestras">
+                      {t.muestra.map((c) => (
+                        <i key={c} style={{ background: c }} />
+                      ))}
+                    </span>
+                    <span className="tema-txt">
+                      <b>{t.nombre}</b>
+                      <span className="pequeno muted">{t.descripcion}</span>
+                    </span>
+                    {(ajustes?.tema ?? 'buho') === t.id && <Check size={16} className="c-acc" />}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
         <button className="bb" onClick={() => void intentar(async () => (await window.buho.elegirCarpeta()) && (await cargarEstado()))} title="Abrir otra carpeta como proyecto">
           <FolderOpen size={15} /> Abrir carpeta
         </button>
@@ -258,6 +307,8 @@ export default function App(): React.JSX.Element {
         </ul>
       </div>
     )
+  else if (vista === 'inicio')
+    centro = <Inicio proyecto={proyecto} arbol={arbol} planos={planos} version={version} ir={ir} irVista={(v) => setVista(v)} />
   else if (vista === 'tablero') centro = <Tablero planos={planos} abrir={ir} />
   else if (vista === 'actividad') centro = <Actividad version={version} abrir={ir} />
   else if (vista === 'conectores')
@@ -270,7 +321,17 @@ export default function App(): React.JSX.Element {
         guardarAjustes={(a) => void window.buho.guardarAjustes(a).then(setAjustes)}
       />
     )
-  else if (elegido && elegido.clase !== 'carpeta') centro = <ArchivoVista key={elegido.ruta} e={elegido} idx={idx} abrir={ir} nombreProyecto={proyecto.nombre} />
+  else if (elegido && elegido.clase !== 'carpeta')
+    centro = (
+      <ArchivoVista
+        key={elegido.ruta}
+        e={elegido}
+        idx={idx}
+        hermanos={(padreDe(elegido.ruta) ? idx.get(padreDe(elegido.ruta))?.hijos ?? [] : arbol).filter((h) => h.clase !== 'carpeta')}
+        abrir={ir}
+        nombreProyecto={proyecto.nombre}
+      />
+    )
   else
     centro = (
       <Galeria
@@ -288,7 +349,7 @@ export default function App(): React.JSX.Element {
     )
 
   return (
-    <div className="app">
+    <div className={`app vista-${vista}`}>
       {barra}
       <aside className="lateral">
         <div className="buscador">
@@ -301,7 +362,7 @@ export default function App(): React.JSX.Element {
           )}
         </div>
         <div className="herramientas">
-          <button className={`inicio ${!sel && vista === 'archivos' ? 'on' : ''}`} onClick={() => ir('')}>
+          <button className={`inicio ${vista === 'inicio' ? 'on' : ''}`} onClick={() => ir('')} title="Inicio del proyecto">
             {proyecto.nombre}
           </button>
           <button className="icono" title="Nueva nota" onClick={() => nuevaNota(carpetaDe(elegido))}>
