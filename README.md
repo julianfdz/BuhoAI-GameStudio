@@ -16,6 +16,7 @@ No depende de ningún motor: Unity, Godot o Unreal se enlazan como conectores op
 |---|---|
 | **IDs** | Todo (archivo, carpeta, tarea) tiene una ID estable (`a-…`, `c-…`, `t-…`) que no cambia al mover o renombrar. Clic derecho → **Copiar ID** y la pegas en el chat con la IA: «cambia `a-3f9c21b0`…». El CLI acepta IDs donde va una ruta. |
 | **Tareas** | Kanban (por hacer, en curso, revisar, hecha) con prioridad, asignada (persona o agente), assets enlazados por ID y pasos marcables. Cada tarea es un `.md` en `Tareas/`; los agentes las crean y mueven con `buho-studio tarea`. |
+| **Bugs** | Un bug es una tarea con `tipo: bug` (gravedad, build, si se reproduce, cómo reproducirlo) y tiene su vista con histórico: cifras, abiertos y cerrados por semana, por build y zonas calientes (los assets con más bugs). |
 | **Ayuda** | Ayuda dentro de la app (`docs/ayuda/`), la misma que leen los agentes con `buho-studio ayuda`. |
 | **Inicio** | Portada del proyecto con sus cifras, lo pendiente (por revisar, en curso, comentarios) y una tarjeta por sección (Contexto, Assets, Capturas, Gameplay…) con miniaturas de lo que hay dentro. |
 | **Estilos** | Seis preajustes de color desde el botón «Estilo» de la barra: Claude (por defecto), Búho, Búho noche, Búho AI tinta, Arcade y Blanco y negro. |

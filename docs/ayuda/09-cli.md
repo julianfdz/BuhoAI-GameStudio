@@ -4,7 +4,7 @@ resumen: Referencia del CLI buho-studio para agentes y personas
 ---
 # El CLI buho-studio
 
-El CLI habla con la app abierta (la abre si está cerrada). Todo lo que hace aparece al momento en la app y queda firmado con `--autor`. Todas las órdenes aceptan `--json`. Donde va una ruta vale una **ID**.
+El CLI habla con la app abierta (la abre si está cerrada). Es rápido (~100 ms por orden): la app tiene el árbol del proyecto en memoria y lo rehace sola cuando algo cambia, también desde fuera. Todo lo que hace aparece al momento en la app y queda firmado con `--autor`. Todas las órdenes aceptan `--json`. Donde va una ruta vale una **ID**.
 
 ## Mirar
 
@@ -34,6 +34,7 @@ buho-studio estado-de <ruta|id> revisar
 buho-studio comentarios --pendientes · comentar <ruta|id> "…" · responder <k-id> "…" --resolver
 buho-studio historial [<ruta|id>]
 buho-studio tareas · tarea nueva|ver|mover|editar|paso   (mira «Tareas»)
+buho-studio bugs · bug nuevo|ver|mover|editar|paso       (mira «Bugs»)
 ```
 
 ## Modelos y conectores

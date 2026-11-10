@@ -1,7 +1,7 @@
 {
   "name": "buhoai-gamestudio",
   "productName": "Búho Game Studio",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Búho Game Studio: la mesa de trabajo de un videojuego, para personas y agentes de IA. Buho Corps Systems.",
   "author": { "name": "Buho Corps Systems" },
   "license": "MIT",

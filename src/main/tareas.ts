@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { basename, dirname, join } from 'node:path'
-import type { DatosTarea, EstadoTarea, Paso, PrioridadTarea, Tarea } from '@shared/types'
+import type { DatosTarea, EstadoTarea, GravedadBug, Paso, PrioridadTarea, Reproduce, Tarea } from '@shared/types'
 import { ESTADOS_TAREA } from '@shared/types'
 import * as est from './estudio'
 
@@ -24,11 +24,19 @@ import * as est from './estudio'
  *   - [x] segundo paso (hecho)
  *
  * Es un archivo normal: se puede editar a mano, con un agente o desde la app. El avance sale de los pasos marcados.
+ *
+ * Un **bug** es una tarea con `tipo: bug` (en `Tareas/Bugs/`) y campos propios: `gravedad` (bloqueante | grave |
+ * menor | cosmetico), `build` (versión donde sale), `reproduce` (si | a-veces | no | sin-probar) y, en el cuerpo,
+ * «## Cómo reproducirlo», «## Qué pasa» y «## Qué debería pasar». Todas las tareas guardan `cerrada` (cuándo pasaron
+ * a hecha) y `reabierta` (veces que se sacaron de hecha): de ahí sale el histórico de la vista de Bugs.
  */
 
 const CARPETA = 'Tareas'
 const CAB = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?/
 const PRIORIDADES: PrioridadTarea[] = ['alta', 'media', 'baja']
+const GRAVEDADES: GravedadBug[] = ['bloqueante', 'grave', 'menor', 'cosmetico']
+const REPRODUCE: Reproduce[] = ['si', 'a-veces', 'no', 'sin-probar']
+const TIPOS = ['tarea', 'bug']
 const ESTADOS = ESTADOS_TAREA.map((e) => e.id)
 
 function leerCabecera(texto: string): { campos: Record<string, string>; cuerpo: string } | null {
@@ -49,7 +57,7 @@ const lista = (v: string | undefined): string[] =>
     .map((x) => x.trim().replace(/^["']|["']$/g, ''))
     .filter(Boolean)
 
-const ORDEN_CAMPOS = ['tipo', 'id', 'estado', 'prioridad', 'asignada', 'enlaces', 'creada', 'autor']
+const ORDEN_CAMPOS = ['tipo', 'id', 'estado', 'prioridad', 'gravedad', 'build', 'reproduce', 'asignada', 'enlaces', 'creada', 'autor', 'cerrada', 'reabierta']
 function escribirCabecera(campos: Record<string, string>, cuerpo: string): string {
   const claves = [...ORDEN_CAMPOS.filter((k) => k in campos), ...Object.keys(campos).filter((k) => !ORDEN_CAMPOS.includes(k))]
   return `---\n${claves.map((k) => `${k}: ${campos[k]}`).join('\n')}\n---\n${cuerpo.replace(/^\r?\n/, '')}`
@@ -61,7 +69,8 @@ function pasosDe(cuerpo: string): Paso[] {
 
 function aTarea(ruta: string, texto: string, mtime: number): Tarea | null {
   const c = leerCabecera(texto)
-  if (!c || c.campos.tipo !== 'tarea') return null
+  if (!c || !TIPOS.includes(c.campos.tipo)) return null
+  const tipo = c.campos.tipo as 'tarea' | 'bug'
   const titulo = /^#\s+(.+)$/m.exec(c.cuerpo)?.[1].trim() ?? ruta.split('/').pop()!.replace(/\.md$/i, '')
   const pasos = pasosDe(c.cuerpo)
   // Descripción: el cuerpo sin el título ni la sección de pasos
@@ -74,6 +83,7 @@ function aTarea(ruta: string, texto: string, mtime: number): Tarea | null {
   return {
     id: (c.campos.id || est.idDe(ruta) || '').toLowerCase(),
     ruta,
+    tipo,
     titulo,
     estado,
     prioridad,
@@ -84,12 +94,21 @@ function aTarea(ruta: string, texto: string, mtime: number): Tarea | null {
     descripcion,
     pasos,
     hechos: pasos.filter((p) => p.hecho).length,
-    mtime
+    mtime,
+    ...(c.campos.cerrada ? { cerrada: c.campos.cerrada } : {}),
+    ...(Number(c.campos.reabierta) ? { reabierta: Number(c.campos.reabierta) } : {}),
+    ...(tipo === 'bug'
+      ? {
+          gravedad: (GRAVEDADES.includes(c.campos.gravedad as GravedadBug) ? c.campos.gravedad : 'menor') as GravedadBug,
+          build: c.campos.build || undefined,
+          reproduce: (REPRODUCE.includes(c.campos.reproduce as Reproduce) ? c.campos.reproduce : 'sin-probar') as Reproduce
+        }
+      : {})
   }
 }
 
 /** Todas las tareas del proyecto (los .md de Tareas/ con `tipo: tarea`). */
-export function listar(filtro: { estado?: string; asignada?: string } = {}): Tarea[] {
+export function listar(filtro: { estado?: string; asignada?: string; tipo?: string } = {}): Tarea[] {
   const notas = est.plano().filter((x) => x.clase === 'nota' && (x.ruta === CARPETA || x.ruta.startsWith(CARPETA + '/')))
   const pend: Record<string, number> = {}
   for (const c of est.comentarios()) if (!c.respuestaA && !c.resuelto) pend[c.ruta] = (pend[c.ruta] ?? 0) + 1
@@ -110,7 +129,7 @@ export function listar(filtro: { estado?: string; asignada?: string } = {}): Tar
   }
   const pri = (t: Tarea): number => PRIORIDADES.indexOf(t.prioridad)
   return out
-    .filter((t) => (!filtro.estado || t.estado === filtro.estado) && (!filtro.asignada || (t.asignada ?? '').toLowerCase() === filtro.asignada.toLowerCase()))
+    .filter((t) => (!filtro.tipo || t.tipo === filtro.tipo) && (!filtro.estado || t.estado === filtro.estado) && (!filtro.asignada || (t.asignada ?? '').toLowerCase() === filtro.asignada.toLowerCase()))
     .sort((a, b) => pri(a) - pri(b) || (a.creada ?? '').localeCompare(b.creada ?? ''))
 }
 
@@ -150,26 +169,41 @@ export type { DatosTarea }
 
 export function crear(d: DatosTarea, autor: string): Tarea {
   const titulo = d.titulo?.trim()
-  if (!titulo) throw new Error('Falta el título de la tarea')
-  const carpeta = d.carpeta ? est.norm(d.carpeta) : CARPETA
+  const esBug = (d.tipo ?? 'tarea').toLowerCase() === 'bug'
+  if (!titulo) throw new Error(esBug ? 'Falta el título del bug' : 'Falta el título de la tarea')
+  const carpeta = d.carpeta ? est.norm(d.carpeta) : esBug ? `${CARPETA}/Bugs` : CARPETA
   const dir = est.abs(carpeta)
   mkdirSync(dir, { recursive: true })
   let f = join(dir, limpio(titulo) + '.md')
   for (let i = 2; existsSync(f); i++) f = join(dir, `${limpio(titulo)} (${i}).md`)
   const id = est.idNueva('t')
+  const gravedad = validar(d.gravedad, GRAVEDADES, 'Gravedad') ?? 'menor'
   const campos: Record<string, string> = {
-    tipo: 'tarea',
+    tipo: esBug ? 'bug' : 'tarea',
     id,
     estado: validar(d.estado, ESTADOS, 'Estado') ?? 'por-hacer',
-    prioridad: validar(d.prioridad, PRIORIDADES, 'Prioridad') ?? 'media',
+    // en un bug, la prioridad sale de la gravedad si no se da
+    prioridad: validar(d.prioridad, PRIORIDADES, 'Prioridad') ?? (esBug ? (gravedad === 'bloqueante' || gravedad === 'grave' ? 'alta' : gravedad === 'menor' ? 'media' : 'baja') : 'media'),
+    ...(esBug
+      ? {
+          gravedad,
+          ...(d.build?.trim() ? { build: d.build.trim() } : {}),
+          reproduce: validar(d.reproduce, REPRODUCE, 'Reproduce') ?? 'sin-probar'
+        }
+      : {}),
     ...(d.asignada?.trim() ? { asignada: d.asignada.trim() } : {}),
     enlaces: `[${enlacesValidos(d.enlaces ?? []).join(', ')}]`,
     creada: new Date().toISOString(),
     autor
   }
   const pasos = (d.pasos ?? []).map((p) => p.trim()).filter(Boolean)
-  const cuerpo = `# ${titulo}\n\n${d.descripcion?.trim() ? d.descripcion.trim() + '\n\n' : ''}${pasos.length ? `## Pasos\n\n${pasos.map((p) => `- [ ] ${p}`).join('\n')}\n` : ''}`
+  const rep = (d.reproducir ?? []).map((x) => x.trim()).filter(Boolean)
+  const bug = esBug
+    ? `## Cómo reproducirlo\n\n${rep.length ? rep.map((x, i) => `${i + 1}. ${x}`).join('\n') : '1. '}\n\n## Qué pasa\n\n${d.pasa?.trim() ?? ''}\n\n## Qué debería pasar\n\n${d.deberia?.trim() ?? ''}\n\n`
+    : ''
+  const cuerpo = `# ${titulo}\n\n${d.descripcion?.trim() ? d.descripcion.trim() + '\n\n' : ''}${bug}${pasos.length ? `## Pasos\n\n${pasos.map((p) => `- [ ] ${p}`).join('\n')}\n` : ''}`
   writeFileSync(f, escribirCabecera(campos, cuerpo))
+  est.invalidar()
   const ruta = est.rel(f)
   est.fijarId(ruta, id)
   return una(ruta)
@@ -180,6 +214,7 @@ function reescribir(t: Tarea, cambio: (campos: Record<string, string>, cuerpo: s
   const c = leerCabecera(readFileSync(p, 'utf8').replace(/^﻿/, ''))!
   const r = cambio({ ...c.campos }, c.cuerpo)
   writeFileSync(p, escribirCabecera(r.campos, r.cuerpo))
+  est.invalidar()
 }
 
 /** Cambia campos de una tarea. Cambiar el título renombra el archivo (la ID se queda). */
@@ -187,7 +222,23 @@ export function editar(idOruta: string, d: DatosTarea): Tarea {
   const t = una(idOruta)
   reescribir(t, (campos, cuerpo) => {
     const e = validar(d.estado, ESTADOS, 'Estado')
-    if (e) campos.estado = e
+    if (e && e !== campos.estado) {
+      if (e === 'hecha') campos.cerrada = new Date().toISOString()
+      else if (campos.estado === 'hecha') {
+        delete campos.cerrada
+        campos.reabierta = String((Number(campos.reabierta) || 0) + 1)
+      }
+      campos.estado = e
+    }
+    const g = validar(d.gravedad, GRAVEDADES, 'Gravedad')
+    if (g) campos.gravedad = g
+    const rp = validar(d.reproduce, REPRODUCE, 'Reproduce')
+    if (rp) campos.reproduce = rp
+    if (d.build !== undefined) {
+      if (d.build.trim()) campos.build = d.build.trim()
+      else delete campos.build
+    }
+    if (d.tipo && TIPOS.includes(d.tipo)) campos.tipo = d.tipo
     const pr = validar(d.prioridad, PRIORIDADES, 'Prioridad')
     if (pr) campos.prioridad = pr
     if (d.asignada !== undefined) {
@@ -247,7 +298,7 @@ export function anadirPaso(idOruta: string, texto: string): Tarea {
 export function esTarea(ruta: string): boolean {
   try {
     const p = est.abs(ruta)
-    return !!existsSync(p) && leerCabecera(readFileSync(p, 'utf8').slice(0, 600) + '\n')?.campos.tipo === 'tarea'
+    return !!existsSync(p) && TIPOS.includes(leerCabecera(readFileSync(p, 'utf8').slice(0, 600) + '\n')?.campos.tipo ?? '')
   } catch {
     return false
   }

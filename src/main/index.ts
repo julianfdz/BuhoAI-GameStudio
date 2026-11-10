@@ -39,6 +39,7 @@ const deApi = (p: Record<string, unknown>, canal: string): Firma => ({
 /** Apunta en el historial firmado, avisa a la interfaz y rehace la foto del árbol (así el vigilante no lo toma por externo). */
 function hecho<T>(f: Firma, accion: string, rutas: string[], r: T, detalle?: string, tipo: Cambio['tipo'] = 'arbol'): T {
   for (const ruta of rutas.length ? rutas : ['']) est.registrar({ autor: f.autor, usuario: leerAjustes().autor, origen: f.origen, canal: f.canal, equipo: hostname(), accion, ruta, ...(detalle ? { detalle } : {}) })
+  // Cada cambio del núcleo ya tira la caché; aquí solo se rehace la foto (sin otro repaso del disco si no hace falta)
   huella = est.huella()
   emitir({ tipo, rutas, origen: f.origen === 'ia' ? 'ia' : 'app', autor: f.autor })
   return r
@@ -51,6 +52,7 @@ let sondeo: NodeJS.Timeout | null = null
 /** Compara el árbol con la última foto: lo que cambió fuera de la app (Explorador, Blender, git…) se apunta como externo. */
 function reescanear(): void {
   if (!est.proyectoActual()) return
+  est.invalidar()
   const nueva = est.huella()
   const cambios: { accion: string; ruta: string }[] = []
   for (const [r, m] of nueva) {
@@ -359,7 +361,23 @@ function datosTarea(p: Record<string, unknown>): tar.DatosTarea {
   const txt = (k: string): string | undefined => (p[k] === undefined || p[k] === null ? undefined : String(p[k]))
   const xs = (k: string): string[] | undefined =>
     p[k] === undefined ? undefined : Array.isArray(p[k]) ? (p[k] as unknown[]).map(String) : String(p[k]).split(/[;,]/).map((x) => x.trim()).filter(Boolean)
-  return { titulo: txt('titulo'), descripcion: txt('descripcion'), estado: txt('estado'), prioridad: txt('prioridad'), asignada: txt('asignada'), enlaces: xs('enlaces'), pasos: xs('pasos'), carpeta: txt('carpeta') }
+  return {
+    titulo: txt('titulo'),
+    descripcion: txt('descripcion'),
+    estado: txt('estado'),
+    prioridad: txt('prioridad'),
+    asignada: txt('asignada'),
+    enlaces: xs('enlaces'),
+    pasos: xs('pasos'),
+    carpeta: txt('carpeta'),
+    tipo: txt('tipo'),
+    gravedad: txt('gravedad'),
+    build: txt('build'),
+    reproduce: txt('reproduce'),
+    reproducir: p.reproducir === undefined ? undefined : Array.isArray(p.reproducir) ? (p.reproducir as unknown[]).map(String) : String(p.reproducir).split(/;|\n/).map((x) => x.trim()).filter(Boolean),
+    pasa: txt('pasa'),
+    deberia: txt('deberia')
+  }
 }
 const S = (v: unknown): string => (v === undefined || v === null ? '' : String(v))
 const lista = (v: unknown): string[] => (Array.isArray(v) ? v.map(String) : v ? [String(v)] : [])
@@ -473,12 +491,12 @@ async function apiCall(m: string, p: Record<string, unknown>, canal: string): Pr
       return { ...e, proyecto: est.raizActual(), abierto: true, ...(hijos ? { elementos: hijos.length } : {}) }
     }
     case 'tareas':
-      return tar.listar({ estado: p.estado ? S(p.estado) : undefined, asignada: p.asignada ? S(p.asignada) : undefined })
+      return tar.listar({ estado: p.estado ? S(p.estado) : undefined, asignada: p.asignada ? S(p.asignada) : undefined, tipo: p.tipo ? S(p.tipo) : undefined })
     case 'tarea':
       return tar.una(S(p.id))
     case 'tarea-nueva': {
       const t = tar.crear(datosTarea(p), F.autor)
-      return hecho(F, 'crea tarea', [t.ruta], t, t.titulo)
+      return hecho(F, t.tipo === 'bug' ? 'abre bug' : 'crea tarea', [t.ruta], t, t.titulo)
     }
     case 'tarea-editar': {
       const d = datosTarea(p)

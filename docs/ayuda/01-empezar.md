@@ -19,7 +19,8 @@ La mesa de trabajo de un videojuego, para personas y agentes de IA. Cada proyect
 |---|---|
 | **Inicio** | Resumen del proyecto, lo pendiente y una tarjeta por sección para ir directo |
 | **Archivos** | Árbol a la izquierda, galería o archivo en el centro, ficha y comentarios a la derecha |
-| **Tareas** | Kanban de tareas: por hacer, en curso, revisar y hecha |
+| **Tareas** | Kanban de tareas y bugs: por hacer, en curso, revisar y hecha |
+| **Bugs** | Los bugs con su histórico: cifras, por semana, por build y zonas calientes |
 | **Estados** | Assets agrupados por estado (idea, en curso, revisar, aprobado) |
 | **Actividad** | Comentarios abiertos e historial firmado de todo el proyecto |
 | **Conectores** | Blender, Unity, ComfyUI y tu nombre para firmar |

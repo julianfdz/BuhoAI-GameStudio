@@ -23,7 +23,7 @@ import {
   Sparkles,
   type LucideIcon
 } from 'lucide-react'
-import { ESTADOS, type Entrada, type Proyecto } from '@shared/types'
+import { ESTADOS, type Entrada, type Proyecto, type Tarea } from '@shared/types'
 import { contar, urlArchivo } from '@/lib/util'
 import { useMiniatura } from '@/lib/miniaturas'
 import { ICONO } from './Arbol'
@@ -214,9 +214,10 @@ export function Inicio(p: {
   planos: Entrada[]
   version: number
   ir: (r: string) => void
-  irVista: (v: 'tablero' | 'actividad' | 'tareas') => void
+  irVista: (v: 'tablero' | 'actividad' | 'tareas' | 'bugs') => void
   menu: (e: Entrada, x: number, y: number) => void
   tareasAbiertas: number
+  bugsAbiertos: Tarea[]
   crearIaContext: () => void
 }): React.JSX.Element {
   const archivos = p.planos.filter((x) => x.clase !== 'carpeta')
@@ -309,6 +310,13 @@ export function Inicio(p: {
             <span>sin procesar</span>
           </button>
         )}
+        <button className={`pendiente bugs ${p.bugsAbiertos.some((b) => b.gravedad === 'bloqueante') ? 'alarma' : ''}`} onClick={() => p.irVista('bugs')}>
+          <b>{p.bugsAbiertos.length}</b>
+          <span>
+            bugs abiertos
+            {p.bugsAbiertos.some((b) => b.gravedad === 'bloqueante') ? ` · ${p.bugsAbiertos.filter((b) => b.gravedad === 'bloqueante').length} bloqueante` : ''}
+          </span>
+        </button>
         <button className="pendiente tareas" onClick={() => p.irVista('tareas')}>
           <b>{p.tareasAbiertas}</b>
           <span>tareas abiertas</span>

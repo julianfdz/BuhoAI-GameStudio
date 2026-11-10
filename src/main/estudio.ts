@@ -36,6 +36,16 @@ const TEXTO: Clase[] = ['nota', 'texto']
 let raiz = ''
 let proyecto: Proyecto | null = null
 
+/**
+ * Árbol en memoria. Recorrer el disco cuesta ~300 ms con 600 archivos; con esto cada orden del CLI lee de memoria.
+ * Se tira (invalidar) con cualquier cambio hecho por la app o el CLI, y el vigilante de la app lo rehace cuando
+ * algo cambia fuera (Explorador, Blender, Drive). Si algo no está, `entrada` vuelve a mirar el disco una vez.
+ */
+let cache: Entrada[] | null = null
+export const invalidar = (): void => {
+  cache = null
+}
+
 export const raizActual = (): string => raiz
 export const proyectoActual = (): Proyecto | null => proyecto
 const meta = (...p: string[]): string => join(raiz, META, ...p)
@@ -185,6 +195,7 @@ const leerJson = <T,>(f: string, def: T): T => {
   }
 }
 const guardarJson = (f: string, v: unknown): void => {
+  cache = null
   mkdirSync(dirname(f), { recursive: true })
   writeFileSync(f, JSON.stringify(v, null, 2) + '\n')
 }
@@ -198,6 +209,7 @@ export function abrir(dir: string): Proyecto {
   const d = resolve(dir)
   if (!existsSync(d) || !statSync(d).isDirectory()) throw new Error(`No existe la carpeta ${d}`)
   raiz = d
+  cache = null
   const f = meta('proyecto.json')
   let p = leerJson<Proyecto | null>(f, null)
   if (!p) {
@@ -211,6 +223,7 @@ export function abrir(dir: string): Proyecto {
 }
 
 export function cerrar(): void {
+  cache = null
   proyecto = null
   raiz = ''
 }
@@ -394,6 +407,14 @@ export function historial(r?: string, max = 200): Evento[] {
 
 export function arbol(): Entrada[] {
   exigir()
+  if (cache) return cache
+  const t = arbolDisco()
+  cache = t
+  return t
+}
+
+/** El árbol leído del disco, sin caché. */
+function arbolDisco(): Entrada[] {
   // Primero un repaso ligero para dar IDs (y reconocer lo movido desde fuera); luego el árbol con todo
   const todo: { ruta: string; nombre: string; carpeta: boolean; tam: number }[] = []
   const repasar = (dir: string, prof: number): void => {
@@ -455,7 +476,12 @@ export function plano(ns: Entrada[] = arbol()): Entrada[] {
 
 export function entrada(r: string): Entrada {
   const k = norm(r)
-  const n = plano().find((x) => x.ruta === k)
+  let n = plano().find((x) => x.ruta === k)
+  if (!n && existsSync(join(raiz, k))) {
+    // recién creado fuera y el vigilante aún no ha pasado: se mira el disco
+    cache = null
+    n = plano().find((x) => x.ruta === k)
+  }
   if (!n) throw new Error(`No existe «${k}»`)
   return n
 }
@@ -492,6 +518,7 @@ export function escribir(r: string, texto: string, anadir = false): Entrada {
   mkdirSync(dirname(p), { recursive: true })
   if (anadir && existsSync(p)) appendFileSync(p, (readFileSync(p, 'utf8').endsWith('\n') ? '' : '\n') + texto)
   else writeFileSync(p, texto)
+  cache = null
   return entrada(rel(p))
 }
 
@@ -502,6 +529,7 @@ export function crearCarpeta(padre: string, nombre: string): Entrada {
   const p = join(base, n)
   if (existsSync(p)) throw new Error(`Ya existe «${rel(p)}»`)
   mkdirSync(p, { recursive: true })
+  cache = null
   return entrada(rel(p))
 }
 
@@ -514,6 +542,7 @@ export function crearNota(carpeta: string, titulo: string, texto?: string): Entr
   if (existsSync(p)) throw new Error(`Ya existe «${rel(p)}»`)
   const cuerpo = texto?.trim() ? (texto.endsWith('\n') ? texto : texto + '\n') : `# ${titulo.replace(/\.md$/i, '').trim()}\n\n`
   writeFileSync(p, cuerpo)
+  cache = null
   return entrada(rel(p))
 }
 
@@ -537,6 +566,7 @@ export function anadir(destino: string, archivos: string[]): Entrada[] {
     cpSync(src, dst, { recursive: true, filter: (s) => !s.endsWith('.meta') })
     hechos.push(rel(dst))
   }
+  cache = null
   return hechos.map(entrada)
 }
 
@@ -551,6 +581,7 @@ export function mover(r: string, destino: string): Entrada {
   const de = rel(p)
   renameSync(p, n)
   reubicar(de, rel(n))
+  cache = null
   return entrada(rel(n))
 }
 
@@ -566,6 +597,7 @@ export function renombrar(r: string, nombre: string): Entrada {
   const de = rel(p)
   renameSync(p, dst)
   reubicar(de, rel(dst))
+  cache = null
   return entrada(rel(dst))
 }
 
@@ -575,6 +607,7 @@ export async function borrar(r: string, papelera: (p: string) => Promise<void>):
   if (p === raiz) throw new Error('No se puede borrar la carpeta del proyecto desde el estudio')
   const k = rel(p)
   await papelera(p)
+  cache = null
   const e = estados()
   for (const x of Object.keys(e)) if (x === k || x.startsWith(k + '/')) delete e[x]
   guardarJson(meta('estados.json'), e)

@@ -91,6 +91,11 @@ buho-studio tarea paso t-1a2b3c4d --nuevo "Probar en Unity"
 buho-studio tarea editar t-1a2b3c4d [--titulo] [--descripcion] [--prioridad] [--asignada] [--enlaces]
 buho-studio comentar t-1a2b3c4d "Modelo hecho; falta la textura" --autor Claude
 
+# Bugs (tareas con tipo: bug en Tareas/Bugs/; vista Bugs con histórico en la app)
+buho-studio bug nuevo "El build se cierra al salir" --gravedad bloqueante|grave|menor|cosmetico --build v0.3 --reproducir "Abrir; Jugar; Salir" --pasa "…" --deberia "…" [--reproduce si|a-veces|no] --enlaces a-… --autor Claude
+buho-studio bugs [--abiertos] [--gravedad grave] [--build v0.3]
+buho-studio bug mover|editar|ver|paso t-… …                   # como tarea; a hecha lo cierra, sacarlo lo reabre
+
 # Ayuda (la misma que ve la persona en la app)
 buho-studio ayuda                  # temas
 buho-studio ayuda tareas           # una página
@@ -125,17 +130,21 @@ Opciones globales: `--json` (salida JSON en una línea), `--autor "Nombre"`, `--
    (`nota "Sin procesar" "…"` o `anadir "Sin procesar" archivo`, con ficha: de quién viene y para qué) y **no lo
    proceses** ni lo leas entero. Solo cuando te pidan procesarlo: léelo, llévalo a su sitio (nota de Contexto, tarea,
    asset) y quita el original de la bandeja.
-6. **Tareas**: si te piden organizar trabajo, créalo como tareas (`tarea nueva`) con pasos y enlaces a las IDs de los
+6. **Bugs**: cuando encuentres un fallo (en un log, una prueba con bots, una captura o un comentario), ábrelo con
+   `bug nuevo`: gravedad, build, cómo reproducirlo, qué pasa, qué debería pasar y enlaces a la captura, el vídeo o el
+   asset donde se ve. Antes, mira con `bugs --abiertos` que no exista ya. Al arreglarlo, comenta la causa y déjalo en
+   `revisar`; **cerrarlo (hecha) es cosa de una persona**.
+7. **Tareas**: si te piden organizar trabajo, créalo como tareas (`tarea nueva`) con pasos y enlaces a las IDs de los
    assets. Al trabajar una tarea: muévela a `en-curso`, marca los pasos según avanzas y al acabar déjala en `revisar`
    con un comentario de qué hiciste. **`hecha` la pone una persona.** Mira las tuyas con `tareas --asignada <tu nombre>`.
-7. **Ficha de cada asset**: todo asset que subas o crees lleva **nombre** (cómo se llama en el juego, p. ej.
+8. **Ficha de cada asset**: todo asset que subas o crees lleva **nombre** (cómo se llama en el juego, p. ej.
    «Ray Gun Búho», no `raygun_buho_v3.glb`) y **descripción** (qué es, dónde sale en el juego, de dónde viene).
    Ponlos con `anadir … --nombre --descripcion` o con `ficha`. Revisa `fichas --faltan` antes de pasar algo a `revisar`.
-8. **Assets de fuera**: `anadir` copia; el original no se mueve ni se borra. Respeta las licencias (apúntalas en
+9. **Assets de fuera**: `anadir` copia; el original no se mueve ni se borra. Respeta las licencias (apúntalas en
    `Contexto/Referencias.md` o en una nota de créditos).
-9. **No dependas del motor**: el proyecto del estudio no es el proyecto de Unity. Si hay uno enlazado
+10. **No dependas del motor**: el proyecto del estudio no es el proyecto de Unity. Si hay uno enlazado
    (`conectores`), no copies el estudio dentro de su `Assets/`; para lanzar órdenes del motor usa `buho-studio unity -- …`.
-10. **Comprueba con los ojos**: tras subir modelos, `miniaturas` y mira las imágenes de `.buhostudio/miniaturas/`
+11. **Comprueba con los ojos**: tras subir modelos, `miniaturas` y mira las imágenes de `.buhostudio/miniaturas/`
    (la ruta sale en el JSON). Para revisar un .blend a fondo, usa la skill `buho-blender`.
 
 ## Errores típicos

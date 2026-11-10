@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Bot, CheckSquare, ListTodo, MessageSquare, Pencil, Plus, Search, Square, User, X } from 'lucide-react'
-import { ESTADOS_TAREA, type DatosTarea, type Entrada, type EstadoTarea, type Tarea } from '@shared/types'
+import { Bot, Bug, CheckSquare, ListTodo, MessageSquare, Pencil, Plus, RotateCcw, Search, Square, User, X } from 'lucide-react'
+import { ESTADOS_TAREA, GRAVEDADES, REPRODUCE, type DatosTarea, type Entrada, type EstadoTarea, type Tarea } from '@shared/types'
 import { fecha } from '@/lib/util'
 import { Collage } from './Inicio'
 import { IdChip } from './IdChip'
@@ -41,11 +41,12 @@ function Avance({ t }: { t: Tarea }): React.JSX.Element | null {
 export function TareasVista(p: { tareas: Tarea[]; idx: Map<string, Entrada>; abrir: (r: string) => void; aviso: (t: string) => void; menu: (e: Entrada, x: number, y: number) => void }): React.JSX.Element {
   const [q, setQ] = useState('')
   const [quien, setQuien] = useState('')
+  const [tipo, setTipo] = useState<'' | 'tarea' | 'bug'>('')
   const [nueva, setNueva] = useState<EstadoTarea | null>(null)
   const [sobre, setSobre] = useState<EstadoTarea | null>(null)
   const personas = useMemo(() => [...new Set(p.tareas.map((t) => t.asignada).filter(Boolean) as string[])].sort(), [p.tareas])
   const visibles = p.tareas.filter(
-    (t) => (!quien || t.asignada === quien) && (!q.trim() || `${t.titulo} ${t.descripcion} ${t.id} ${t.asignada ?? ''}`.toLowerCase().includes(q.trim().toLowerCase()))
+    (t) => (!tipo || t.tipo === tipo) && (!quien || t.asignada === quien) && (!q.trim() || `${t.titulo} ${t.descripcion} ${t.id} ${t.asignada ?? ''}`.toLowerCase().includes(q.trim().toLowerCase()))
   )
   const mover = async (id: string, estado: EstadoTarea): Promise<void> => {
     try {
@@ -71,6 +72,11 @@ export function TareasVista(p: { tareas: Tarea[]; idx: Map<string, Entrada>; abr
             <Search size={14} />
             <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar tarea o ID…" />
           </span>
+          <select className="selector" value={tipo} onChange={(e) => setTipo(e.target.value as '' | 'tarea' | 'bug')}>
+            <option value="">Tareas y bugs</option>
+            <option value="tarea">Solo tareas</option>
+            <option value="bug">Solo bugs</option>
+          </select>
           {personas.length > 0 && (
             <select className="selector" value={quien} onChange={(e) => setQuien(e.target.value)}>
               <option value="">Todas las personas</option>
@@ -116,7 +122,7 @@ export function TareasVista(p: { tareas: Tarea[]; idx: Map<string, Entrada>; abr
               {xs.map((t) => (
                 <button
                   key={t.id}
-                  className={`kan-tarjeta pri-${t.prioridad}`}
+                  className={`kan-tarjeta pri-${t.prioridad} ${t.tipo === 'bug' ? `es-bug g-${t.gravedad}` : ''}`}
                   draggable
                   onDragStart={(e) => {
                     e.dataTransfer.setData('text/x-buho-tarea', t.id)
@@ -131,9 +137,15 @@ export function TareasVista(p: { tareas: Tarea[]; idx: Map<string, Entrada>; abr
                   }}
                 >
                   <span className="fila entre" style={{ flexWrap: 'nowrap' }}>
-                    <span className={`pri pri-${t.prioridad}`} title={`Prioridad ${t.prioridad}`}>
-                      {t.prioridad}
-                    </span>
+                    {t.tipo === 'bug' ? (
+                      <span className={`sello-g g-${t.gravedad}`} title={`Bug ${t.gravedad}${t.build ? ` · build ${t.build}` : ''}`}>
+                        <Bug size={11} /> {GRAVEDADES.find((g) => g.id === t.gravedad)?.nombre}
+                      </span>
+                    ) : (
+                      <span className={`pri pri-${t.prioridad}`} title={`Prioridad ${t.prioridad}`}>
+                        {t.prioridad}
+                      </span>
+                    )}
                     <IdChip id={t.id} ruta={t.ruta} nombre={t.titulo} />
                   </span>
                   <b className="kan-titulo">{t.titulo}</b>
@@ -191,7 +203,9 @@ export function TareasVista(p: { tareas: Tarea[]; idx: Map<string, Entrada>; abr
 
 /** Formulario de tarea (nueva o editar). Los enlaces se pegan como IDs (Copiar ID en cualquier asset). */
 export function FormTarea(p: { titulo: string; inicial: DatosTarea; idx: Map<string, Entrada>; cerrar: () => void; guardar: (d: DatosTarea) => Promise<void> }): React.JSX.Element {
-  const [d, setD] = useState<DatosTarea>({ prioridad: 'media', ...p.inicial })
+  const [d, setD] = useState<DatosTarea>({ ...(p.inicial.tipo === 'bug' ? { gravedad: 'menor', reproduce: 'sin-probar' } : { prioridad: 'media' }), ...p.inicial })
+  const esBug = d.tipo === 'bug'
+  const [reproducir, setReproducir] = useState('')
   const [pasos, setPasos] = useState((p.inicial.pasos ?? []).join('\n'))
   const [enlaces, setEnlaces] = useState((p.inicial.enlaces ?? []).join(', '))
   const [error, setError] = useState('')
@@ -206,7 +220,12 @@ export function FormTarea(p: { titulo: string; inicial: DatosTarea; idx: Map<str
           e.preventDefault()
           if (!d.titulo?.trim()) return setError('Ponle un título')
           try {
-            await p.guardar({ ...d, enlaces: ids, ...(p.inicial.titulo === undefined ? { pasos: pasos.split('\n').map((x) => x.trim()).filter(Boolean) } : {}) })
+            await p.guardar({
+              ...d,
+              enlaces: ids,
+              ...(p.inicial.titulo === undefined ? { pasos: pasos.split('\n').map((x) => x.trim()).filter(Boolean) } : {}),
+              ...(esBug && p.inicial.titulo === undefined ? { reproducir: reproducir.split('\n').map((x) => x.trim()).filter(Boolean) } : {})
+            })
             p.cerrar()
           } catch (x) {
             setError(String((x as Error).message).replace(/^Error invoking remote method '[^']+': (Error: )?/, ''))
@@ -219,8 +238,59 @@ export function FormTarea(p: { titulo: string; inicial: DatosTarea; idx: Map<str
             <X size={16} />
           </button>
         </div>
-        <input autoFocus className="campo" placeholder="Título (p. ej. «Modelar la Ray Gun en low-poly»)" value={d.titulo ?? ''} onChange={(e) => setD({ ...d, titulo: e.target.value })} />
-        <textarea className="campo" rows={4} placeholder="Descripción: qué hay que hacer y cómo saber que está hecha (Markdown)" value={d.descripcion ?? ''} onChange={(e) => setD({ ...d, descripcion: e.target.value })} />
+        <input
+          autoFocus
+          className="campo"
+          placeholder={esBug ? 'Qué falla, en corto (p. ej. «El build se cierra al salir con -autoquit»)' : 'Título (p. ej. «Modelar la Ray Gun en low-poly»)'}
+          value={d.titulo ?? ''}
+          onChange={(e) => setD({ ...d, titulo: e.target.value })}
+        />
+        {esBug && p.inicial.titulo === undefined ? (
+          <>
+            <div className="form-fila">
+              <label>
+                <span className="pequeno muted">Gravedad</span>
+                <select className="selector" value={d.gravedad ?? 'menor'} onChange={(e) => setD({ ...d, gravedad: e.target.value })}>
+                  {GRAVEDADES.map((g) => (
+                    <option key={g.id} value={g.id}>
+                      {g.nombre}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <span className="pequeno muted">Build o versión</span>
+                <input className="campo" placeholder="v0.3" value={d.build ?? ''} onChange={(e) => setD({ ...d, build: e.target.value })} />
+              </label>
+              <label className="crece">
+                <span className="pequeno muted">¿Se reproduce?</span>
+                <select className="selector" value={d.reproduce ?? 'sin-probar'} onChange={(e) => setD({ ...d, reproduce: e.target.value })}>
+                  {REPRODUCE.map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {r.nombre}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <label>
+              <span className="pequeno muted">Cómo reproducirlo (un paso por línea)</span>
+              <textarea className="campo" rows={3} placeholder={'Abrir el juego\nEmpezar partida\nPulsar Esc'} value={reproducir} onChange={(e) => setReproducir(e.target.value)} />
+            </label>
+            <div className="form-fila">
+              <label className="crece">
+                <span className="pequeno muted">Qué pasa</span>
+                <textarea className="campo" rows={2} value={d.pasa ?? ''} onChange={(e) => setD({ ...d, pasa: e.target.value })} />
+              </label>
+              <label className="crece">
+                <span className="pequeno muted">Qué debería pasar</span>
+                <textarea className="campo" rows={2} value={d.deberia ?? ''} onChange={(e) => setD({ ...d, deberia: e.target.value })} />
+              </label>
+            </div>
+          </>
+        ) : (
+          <textarea className="campo" rows={4} placeholder="Descripción: qué hay que hacer y cómo saber que está hecha (Markdown)" value={d.descripcion ?? ''} onChange={(e) => setD({ ...d, descripcion: e.target.value })} />
+        )}
         <div className="form-fila">
           <label>
             <span className="pequeno muted">Estado</span>
@@ -248,7 +318,7 @@ export function FormTarea(p: { titulo: string; inicial: DatosTarea; idx: Map<str
           </label>
         </div>
         <label>
-          <span className="pequeno muted">Assets relacionados: pega sus IDs (clic derecho → Copiar ID)</span>
+          <span className="pequeno muted">{esBug ? 'Dónde falla: assets, escenas, vídeo o captura (pega sus IDs)' : 'Assets relacionados: pega sus IDs (clic derecho → Copiar ID)'}</span>
           <input className="campo mono" placeholder="a-3f9c21b0, c-77aa0011" value={enlaces} onChange={(e) => setEnlaces(e.target.value)} />
         </label>
         {ids.length > 0 && (
@@ -265,7 +335,7 @@ export function FormTarea(p: { titulo: string; inicial: DatosTarea; idx: Map<str
         )}
         {p.inicial.titulo === undefined && (
           <label>
-            <span className="pequeno muted">Pasos (uno por línea, opcional)</span>
+            <span className="pequeno muted">{esBug ? 'Pasos para arreglarlo (opcional, uno por línea)' : 'Pasos (uno por línea, opcional)'}</span>
             <textarea className="campo" rows={3} placeholder={'Bocetar\nModelar\nExportar a Unity'} value={pasos} onChange={(e) => setPasos(e.target.value)} />
           </label>
         )}
@@ -307,6 +377,11 @@ export function TareaVista(p: { t: Tarea; idx: Map<string, Entrada>; abrir: (r: 
         </span>
         <span className={`pri pri-${t.prioridad}`}>prioridad {t.prioridad}</span>
         <Asignada n={t.asignada} />
+        {t.reabierta ? (
+          <span className="pequeno c-bug">
+            <RotateCcw size={12} /> reabierta {t.reabierta} {t.reabierta === 1 ? 'vez' : 'veces'}
+          </span>
+        ) : null}
         <span className="der fila">
           <button className="btn chico" onClick={() => setEditar(true)}>
             <Pencil size={13} /> Editar
@@ -316,9 +391,40 @@ export function TareaVista(p: { t: Tarea; idx: Map<string, Entrada>; abrir: (r: 
           </button>
         </span>
       </div>
+      {t.tipo === 'bug' && (
+        <div className="fila barra-bug">
+          <Bug size={16} className="c-bug" />
+          <span className="segmentado">
+            {GRAVEDADES.map((g) => (
+              <button key={g.id} className={t.gravedad === g.id ? `on g-${g.id}` : ''} onClick={() => void intentar(() => window.buho.editarTarea(t.id, { gravedad: g.id }))}>
+                {g.nombre}
+              </button>
+            ))}
+          </span>
+          <select className="selector" value={t.reproduce ?? 'sin-probar'} onChange={(e) => void intentar(() => window.buho.editarTarea(t.id, { reproduce: e.target.value }))}>
+            {REPRODUCE.map((r) => (
+              <option key={r.id} value={r.id}>
+                Se reproduce: {r.nombre.toLowerCase()}
+              </option>
+            ))}
+          </select>
+          <label className="fila pequeno">
+            Build
+            <input
+              className="campo build-campo"
+              defaultValue={t.build ?? ''}
+              key={t.build ?? ''}
+              placeholder="v0.3"
+              onBlur={(e) => e.target.value.trim() !== (t.build ?? '') && void intentar(() => window.buho.editarTarea(t.id, { build: e.target.value }))}
+              onKeyDown={(e) => e.key === 'Enter' && e.currentTarget.blur()}
+            />
+          </label>
+        </div>
+      )}
       <p className="muted pequeno">
-        Creada {t.creada ? fecha(t.creada) : '—'}
-        {t.autor ? ` por ${t.autor}` : ''} · <span className="mono">{t.ruta}</span>
+        {t.tipo === 'bug' ? 'Abierto' : 'Creada'} {t.creada ? fecha(t.creada) : '—'}
+        {t.autor ? ` por ${t.autor}` : ''}
+        {t.cerrada ? ` · cerrada ${fecha(t.cerrada)}` : ''} · <span className="mono">{t.ruta}</span>
       </p>
 
       {t.enlaces.length > 0 && (
@@ -390,7 +496,7 @@ export function TareaVista(p: { t: Tarea; idx: Map<string, Entrada>; abrir: (r: 
       {editar && (
         <FormTarea
           titulo="Editar tarea"
-          inicial={{ titulo: t.titulo, descripcion: t.descripcion, estado: t.estado, prioridad: t.prioridad, asignada: t.asignada ?? '', enlaces: t.enlaces }}
+          inicial={{ titulo: t.titulo, descripcion: t.descripcion, estado: t.estado, prioridad: t.prioridad, asignada: t.asignada ?? '', enlaces: t.enlaces, tipo: t.tipo }}
           idx={p.idx}
           cerrar={() => setEditar(false)}
           guardar={async (d) => {

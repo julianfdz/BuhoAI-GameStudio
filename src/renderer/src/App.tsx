@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Activity, Bot, Check, CircleHelp, FilePlus2, FolderOpen, FolderPlus, FolderTree, House, KanbanSquare, ListTodo, LogOut, Palette, Plug, Search, Upload, X } from 'lucide-react'
+import { Activity, Bot, Bug, Check, CircleHelp, FilePlus2, FolderOpen, FolderPlus, FolderTree, House, KanbanSquare, ListTodo, LogOut, Palette, Plug, Search, Upload, X } from 'lucide-react'
 import type { Ajustes, DatosTarea, Entrada, Proyecto, Tarea } from '@shared/types'
 import { PLANTILLA_IA_CONTEXT } from '@shared/plantillaIa'
 import { guardarLocal, indexar, leerLocal, nombreDe, padreDe } from '@/lib/util'
@@ -11,12 +11,13 @@ import { Actividad, Conectores, Portada, Tablero } from '@/components/Paneles'
 import { Inicio } from '@/components/Inicio'
 import { FormTarea, TareaVista, TareasVista } from '@/components/Tareas'
 import { Ayuda } from '@/components/Ayuda'
+import { BugsVista } from '@/components/Bugs'
 import { IdChip, copiarId } from '@/components/IdChip'
 import { Migas } from '@/components/Vistas'
 import { TEMAS, aplicarTema } from '@/lib/temas'
 import logo from './logobuho.png'
 
-type Vista = 'inicio' | 'archivos' | 'tareas' | 'tablero' | 'actividad' | 'conectores' | 'ayuda'
+type Vista = 'inicio' | 'archivos' | 'tareas' | 'bugs' | 'tablero' | 'actividad' | 'conectores' | 'ayuda'
 type Pregunta = { titulo: string; valor: string; ok: (v: string) => void }
 type Menu = { e: Entrada | null; x: number; y: number }
 const limpiarError = (e: unknown): string => String((e as Error)?.message ?? e).replace(/^Error invoking remote method '[^']+': (Error: )?/, '')
@@ -228,6 +229,7 @@ export default function App(): React.JSX.Element {
               ['inicio', House, 'Inicio'],
               ['archivos', FolderTree, 'Archivos'],
               ['tareas', ListTodo, 'Tareas'],
+              ['bugs', Bug, 'Bugs'],
               ['tablero', KanbanSquare, 'Estados'],
               ['actividad', Activity, 'Actividad'],
               ['conectores', Plug, 'Conectores'],
@@ -341,7 +343,8 @@ export default function App(): React.JSX.Element {
         ir={ir}
         irVista={(v) => setVista(v)}
         menu={abrirMenu}
-        tareasAbiertas={tareas.filter((t) => t.estado !== 'hecha').length}
+        tareasAbiertas={tareas.filter((t) => t.tipo !== 'bug' && t.estado !== 'hecha').length}
+        bugsAbiertos={tareas.filter((t) => t.tipo === 'bug' && t.estado !== 'hecha')}
         crearIaContext={() =>
           void intentar(async () => {
             await window.buho.escribir('Contexto/ia_context.md', PLANTILLA_IA_CONTEXT(proyecto.nombre))
@@ -352,6 +355,7 @@ export default function App(): React.JSX.Element {
     )
   else if (vista === 'tareas') centro = <TareasVista tareas={tareas} idx={idx} abrir={ir} aviso={aviso} menu={abrirMenu} />
   else if (vista === 'ayuda') centro = <Ayuda />
+  else if (vista === 'bugs') centro = <BugsVista tareas={tareas} idx={idx} abrir={ir} menu={abrirMenu} nuevo={() => setFormTarea({ tipo: 'bug', estado: 'por-hacer' })} />
   else if (vista === 'tablero') centro = <Tablero planos={planos} abrir={ir} />
   else if (vista === 'actividad') centro = <Actividad version={version} abrir={ir} />
   else if (vista === 'conectores')
@@ -369,7 +373,7 @@ export default function App(): React.JSX.Element {
       <div className="pagina archivo">
         <Migas ruta={elegido.ruta} nombre={proyecto.nombre} ir={ir} />
         <h1 className="h-pagina">
-          <ListTodo size={24} className="c-acc" /> {tareaElegida.titulo}
+          {tareaElegida.tipo === 'bug' ? <Bug size={24} className="c-bug" /> : <ListTodo size={24} className="c-acc" />} {tareaElegida.titulo}
           <IdChip id={tareaElegida.id} ruta={tareaElegida.ruta} nombre={tareaElegida.titulo} />
         </h1>
         <TareaVista t={tareaElegida} idx={idx} abrir={ir} aviso={aviso} editarTexto={() => setVerTexto(elegido.ruta)} />
@@ -458,6 +462,7 @@ export default function App(): React.JSX.Element {
                 </button>
                 <button onClick={() => void copiarId(menu.e!.id, `${menu.e!.id} · ${menu.e!.titulo ?? menu.e!.nombre} · ${menu.e!.ruta}`)}>Copiar ID con nombre y ruta</button>
                 <button onClick={() => setFormTarea({ enlaces: [menu.e!.id], estado: 'por-hacer' })}>Nueva tarea con esto…</button>
+                <button onClick={() => setFormTarea({ enlaces: [menu.e!.id], estado: 'por-hacer', tipo: 'bug' })}>Nuevo bug con esto…</button>
                 <hr />
               </>
             )}
@@ -507,13 +512,13 @@ export default function App(): React.JSX.Element {
       {pregunta && <Preguntar p={pregunta} cerrar={() => setPregunta(null)} />}
       {formTarea && (
         <FormTarea
-          titulo="Nueva tarea"
+          titulo={formTarea.tipo === 'bug' ? 'Nuevo bug' : 'Nueva tarea'}
           inicial={formTarea}
           idx={idx}
           cerrar={() => setFormTarea(null)}
           guardar={async (d) => {
             const t = await window.buho.crearTarea(d)
-            aviso(`Tarea creada: ${t.id}`)
+            aviso(`${t.tipo === 'bug' ? 'Bug abierto' : 'Tarea creada'}: ${t.id}`)
           }}
         />
       )}

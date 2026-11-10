@@ -53,6 +53,13 @@
  *   buho-studio tarea paso <id> <n> [--pendiente]        marca (o desmarca) el paso n
  *   buho-studio tarea paso <id> --nuevo "texto"          añade un paso
  *
+ * Bugs (tareas con tipo: bug en Tareas/Bugs/, vista propia con histórico en la app)
+ *   buho-studio bugs [--abiertos | --estado …] [--gravedad grave] [--build v0.3]   lista y resumen
+ *   buho-studio bug nuevo "El build se cierra al salir" --gravedad bloqueante|grave|menor|cosmetico [--build v0.3]
+ *                         [--reproducir "Abrir; Jugar; Salir"] [--pasa "…"] [--deberia "…"] [--reproduce si|a-veces|no]
+ *                         [--asignada Claude] [--enlaces a-…]
+ *   buho-studio bug ver|mover|editar|paso <id> …         como «tarea» (mover a hecha lo cierra; sacarlo, lo reabre)
+ *
  * Ayuda
  *   buho-studio ayuda [tema]                             la misma ayuda que la app (temas: buho-studio ayuda)
  *
@@ -150,16 +157,26 @@ async function connect() {
 
 let conn = null
 async function call(method, body = {}) {
-  conn ??= await connect()
-  let res
-  try {
-    res = await fetch(`${conn.url}/v1/${method}`, {
+  // Rápido: se llama directamente con lo que diga api.json; solo si no contesta se comprueba y se abre la app
+  conn ??= readInfo()
+  const pedir = () =>
+    fetch(`${conn.url}/v1/${method}`, {
       method: 'POST',
       headers: { authorization: `Bearer ${conn.token}`, 'content-type': 'application/json', 'x-buho-canal': 'cli' },
       body: JSON.stringify({ ...body, ...(autor ? { autor } : {}) })
     })
+  let res
+  try {
+    if (!conn) throw new Error('sin api.json')
+    res = await pedir()
+    if (res.status === 401) throw new Error('token viejo')
   } catch {
-    die('No puedo conectar con Búho Game Studio. ¿Está abierta?', 2)
+    conn = await connect()
+    try {
+      res = await pedir()
+    } catch {
+      die('No puedo conectar con Búho Game Studio. ¿Está abierta?', 2)
+    }
   }
   const data = await res.json()
   if (!res.ok) die(`Error: ${data.error ?? res.status}`)
@@ -207,7 +224,8 @@ function pintarTarea(t, completa = false) {
   const avance = t.pasos.length ? `  ${t.hechos}/${t.pasos.length}` : ''
   print(`  ${PRI[t.prioridad] ?? '·'} ${t.id}  ${t.titulo}${t.asignada ? `  @${t.asignada}` : ''}${avance}${t.pendientes ? `  ✉${t.pendientes}` : ''}`)
   if (!completa) return
-  print(`     ${t.estado} · prioridad ${t.prioridad} · ${t.ruta}`)
+  print(`     ${t.tipo === 'bug' ? `BUG ${t.gravedad} · ` : ''}${t.estado} · prioridad ${t.prioridad}${t.build ? ` · build ${t.build}` : ''}${t.reproduce ? ` · se reproduce: ${t.reproduce}` : ''} · ${t.ruta}`)
+  if (t.cerrada) print(`     Cerrada ${String(t.cerrada).slice(0, 10)}${t.reabierta ? ` · reabierta ${t.reabierta} veces` : ''}`)
   if (t.enlaces.length) print(`     Enlaces: ${t.enlaces.join(', ')}`)
   if (t.descripcion) print('\n' + t.descripcion.split('\n').map((l) => '     ' + l).join('\n'))
   if (t.pasos.length) {
@@ -378,7 +396,23 @@ async function main() {
       }
       return
     }
+    case 'bugs': {
+      const r = await call('tareas', { tipo: 'bug', estado: opt.estado, asignada: opt.asignada })
+      const xs = r.filter((t) => (!opt.abiertos || t.estado !== 'hecha') && (!opt.gravedad || t.gravedad === opt.gravedad) && (!opt.build || t.build === opt.build))
+      if (opt.json) return out(xs)
+      const abiertos = r.filter((t) => t.estado !== 'hecha')
+      const dias = (a, b) => (new Date(b) - new Date(a)) / 864e5
+      const cerrados = r.filter((t) => t.cerrada && t.creada)
+      const medio = cerrados.length ? cerrados.reduce((s, t) => s + dias(t.creada, t.cerrada), 0) / cerrados.length : null
+      print(`Bugs: ${abiertos.length} abiertos (${['bloqueante', 'grave', 'menor', 'cosmetico'].map((g) => `${abiertos.filter((t) => t.gravedad === g).length} ${g}`).join(', ')}) · ${r.length - abiertos.length} cerrados${medio !== null ? ` · arreglo medio ${medio.toFixed(1)} días` : ''}`)
+      if (!xs.length) return print('Ninguno con ese filtro.')
+      const G = { bloqueante: '‼', grave: '!', menor: '·', cosmetico: '∘' }
+      for (const t of xs) print(`  ${G[t.gravedad] ?? '·'} ${t.id}  ${t.titulo}  [${t.estado}${t.build ? ` · ${t.build}` : ''}${t.asignada ? ` · @${t.asignada}` : ''}]${t.reabierta ? `  reabierto ×${t.reabierta}` : ''}`)
+      return
+    }
+    case 'bug':
     case 'tarea': {
+      const esBug = cmd === 'bug'
       const sub = args[0]
       const id = args[1]
       const texto = async () => (typeof opt.file === 'string' ? readFileSync(resolve(opt.file), 'utf8') : typeof opt.descripcion === 'string' ? opt.descripcion.replace(/\\n/g, '\n') : undefined)
@@ -389,15 +423,21 @@ async function main() {
         asignada: opt.asignada === true ? '' : opt.asignada,
         enlaces: typeof opt.enlaces === 'string' ? opt.enlaces : opt.enlaces === true ? '' : undefined,
         pasos: typeof opt.pasos === 'string' ? opt.pasos : undefined,
-        estado: opt.estado
+        estado: opt.estado,
+        gravedad: opt.gravedad,
+        build: opt.build === true ? '' : opt.build,
+        reproduce: opt.reproduce,
+        reproducir: typeof opt.reproducir === 'string' ? opt.reproducir : undefined,
+        pasa: typeof opt.pasa === 'string' ? opt.pasa : undefined,
+        deberia: typeof opt.deberia === 'string' ? opt.deberia : undefined
       })
       const mostrar = (t) => {
         if (opt.json) return out(t)
         pintarTarea(t, true)
       }
-      if (sub === 'nueva') {
+      if (sub === 'nueva' || sub === 'nuevo') {
         if (args.length < 2) die('Uso: buho-studio tarea nueva "Título" [--descripcion "…"] [--prioridad alta|media|baja] [--asignada X] [--enlaces a-…,c-…] [--pasos "uno; dos"]')
-        return mostrar(await call('tarea-nueva', { ...(await comunes()), titulo: args.slice(1).join(' '), carpeta: opt.carpeta }))
+        return mostrar(await call('tarea-nueva', { ...(await comunes()), titulo: args.slice(1).join(' '), carpeta: opt.carpeta, ...(esBug ? { tipo: 'bug' } : {}) }))
       }
       if (sub === 'ver') {
         necesita(2, 'tarea ver <id>')

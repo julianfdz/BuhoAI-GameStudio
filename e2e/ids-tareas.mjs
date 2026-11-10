@@ -88,6 +88,28 @@ await cli('comentar', t.id, 'Modelo hecho, falta la textura')
 ok((await json('tareas', '--asignada', 'Claude')).length === 1, 'tareas --asignada Claude')
 ok((await cli('ayuda')).includes('Tareas') && (await cli('ayuda', 'ids')).includes('Copiar ID'), 'buho-studio ayuda (temas y página)')
 
+// --- Bugs
+const bug = await json('bug', 'nuevo', 'El build se cierra al salir', '--gravedad', 'grave', '--build', 'v0.3', '--reproducir', 'Abrir; Jugar; Salir', '--pasa', 'Se cierra con error', '--deberia', 'Salir limpio', '--enlaces', idB)
+ok(bug.tipo === 'bug' && bug.gravedad === 'grave' && bug.prioridad === 'alta' && bug.ruta.startsWith('Tareas/Bugs/'), `bug abierto ${bug.id} en ${bug.ruta} (prioridad ${bug.prioridad})`)
+await json('bug', 'nuevo', 'Falta el icono del arma', '--gravedad', 'cosmetico', '--build', 'v0.3')
+let b2 = await json('bug', 'mover', bug.id, 'hecha')
+ok(!!b2.cerrada, 'mover a hecha lo cierra (fecha de cierre)')
+b2 = await json('bug', 'mover', bug.id, 'en-curso')
+ok(!b2.cerrada && b2.reabierta === 1, `sacarlo de hecha lo reabre (reabierta ${b2.reabierta})`)
+const lb = await json('bugs', '--abiertos')
+ok(lb.length === 2 && (await json('tareas', '--estado', 'en-curso')).some((t) => t.id === bug.id), 'bugs --abiertos y el bug sale también en tareas')
+ok((await cli('bugs')).includes('abiertos'), 'resumen de bugs en texto')
+
+// --- Velocidad del CLI (árbol en memoria)
+const tiempos = []
+for (let i = 0; i < 5; i++) {
+  const t0 = Date.now()
+  await cli('estado', '--json')
+  tiempos.push(Date.now() - t0)
+}
+const medio = Math.round(tiempos.reduce((a, b) => a + b, 0) / tiempos.length)
+ok(medio < 300, `estado por el CLI: ${medio} ms de media (${tiempos.join(', ')})`)
+
 // --- Interfaz
 await page.waitForTimeout(1500)
 await page.screenshot({ path: join(shots, '01-inicio.png') })
@@ -107,7 +129,7 @@ const portapapeles = await app.evaluate(({ clipboard }) => clipboard.readText())
 ok(portapapeles === sonidos.id, `Copiar ID → portapapeles: ${portapapeles}`)
 await page.click('.pestanas >> text=Tareas')
 await page.waitForTimeout(1200)
-ok((await page.$$eval('.kan-tarjeta', (xs) => xs.length)) === 3, 'Kanban con 3 tareas')
+ok((await page.$$eval('.kan-tarjeta', (xs) => xs.length)) === 5, 'Kanban con 3 tareas y 2 bugs')
 await page.screenshot({ path: join(shots, '03-tareas.png') })
 // arrastrar «Escribir el lore» a En curso
 {
@@ -124,11 +146,15 @@ ok(lore.estado === 'en-curso', `arrastrar en el Kanban mueve la tarea → ${lore
 await page.locator('.kan-tarjeta', { hasText: 'Modelar la Ray Gun' }).click()
 await page.waitForTimeout(1200)
 await page.screenshot({ path: join(shots, '04-tarea.png') })
+await page.click('.pestanas >> text=Bugs')
+await page.waitForTimeout(1200)
+ok((await page.$$eval('.tabla-bugs tbody tr', (xs) => xs.length)) === 2, 'vista Bugs: 2 abiertos en la tabla')
+await page.screenshot({ path: join(shots, '05-bugs.png') })
 await page.click('.pestanas >> text=Ayuda')
 await page.waitForTimeout(600)
 await page.click('.ayuda-indice >> text=IDs: hablar con la IA con propiedad')
 await page.waitForTimeout(400)
-await page.screenshot({ path: join(shots, '05-ayuda.png') })
+await page.screenshot({ path: join(shots, '06-ayuda.png') })
 
 await app.close()
 console.log(fallos.length ? `\n${fallos.length} fallo(s)` : '\nTodo bien')

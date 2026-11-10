@@ -18,6 +18,22 @@ export const ESTADOS_TAREA: { id: EstadoTarea; nombre: string }[] = [
   { id: 'hecha', nombre: 'Hecha' }
 ]
 export type PrioridadTarea = 'alta' | 'media' | 'baja'
+/** Gravedad de un bug (tarea con `tipo: bug`). */
+export type GravedadBug = 'bloqueante' | 'grave' | 'menor' | 'cosmetico'
+export const GRAVEDADES: { id: GravedadBug; nombre: string }[] = [
+  { id: 'bloqueante', nombre: 'Bloqueante' },
+  { id: 'grave', nombre: 'Grave' },
+  { id: 'menor', nombre: 'Menor' },
+  { id: 'cosmetico', nombre: 'Cosmético' }
+]
+/** ¿Se reproduce el bug? */
+export type Reproduce = 'si' | 'a-veces' | 'no' | 'sin-probar'
+export const REPRODUCE: { id: Reproduce; nombre: string }[] = [
+  { id: 'si', nombre: 'Siempre' },
+  { id: 'a-veces', nombre: 'A veces' },
+  { id: 'no', nombre: 'No se reproduce' },
+  { id: 'sin-probar', nombre: 'Sin probar' }
+]
 export interface Paso {
   texto: string
   hecho: boolean
@@ -26,6 +42,8 @@ export interface Paso {
 export interface Tarea {
   id: string
   ruta: string
+  /** «tarea» o «bug» (un bug es una tarea con campos propios y su vista de Bugs) */
+  tipo: 'tarea' | 'bug'
   titulo: string
   estado: EstadoTarea
   prioridad: PrioridadTarea
@@ -39,6 +57,15 @@ export interface Tarea {
   hechos: number
   mtime: number
   pendientes?: number
+  /** Cuándo pasó a «hecha» (se borra si se reabre) */
+  cerrada?: string
+  /** Veces que se ha sacado de «hecha» */
+  reabierta?: number
+  // Solo bugs
+  gravedad?: GravedadBug
+  /** Versión o build donde aparece */
+  build?: string
+  reproduce?: Reproduce
 }
 
 /** Qué tipo de archivo es, para saber cómo enseñarlo. */
@@ -154,6 +181,14 @@ export interface Lectura {
 }
 
 export interface DatosTarea {
+  tipo?: string
+  gravedad?: string
+  build?: string
+  reproduce?: string
+  /** Bugs: pasos para reproducirlo, qué pasa y qué debería pasar (van al cuerpo del .md) */
+  reproducir?: string[]
+  pasa?: string
+  deberia?: string
   titulo?: string
   descripcion?: string
   estado?: string
